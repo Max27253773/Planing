@@ -22,13 +22,18 @@ SIMU_CONFIG = {
 
 QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
 
+# Configuration de la page avec un layout large
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
 
-# --- STYLE CSS ---
+# --- STYLE CSS (RETOUR À LA STABILITÉ) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #F4F7F9; }
-    [data-testid="column"] { background-color: transparent !important; }
+    /* Fond gris de l'application sans casser le moteur Streamlit */
+    .stApp {
+        background-color: #F4F7F9;
+    }
+    
+    /* On garde les styles du planning */
     .slot-wrapper { position: relative; width: 100%; height: 45px; }
     .calendar-cell-unique { 
         position: absolute; top: 2px; left: 2px; right: 2px;
@@ -44,6 +49,7 @@ st.markdown("""
     .grid-line-min { border-bottom: 1px dashed #ccc; height: 45px; }
     .day-header { text-align: center; background-color: #003366; color: white; padding: 10px; border-radius: 4px; font-weight: bold; margin-bottom: 10px; }
     
+    /* Bouton Télécharger Planning */
     div.stDownloadButton > button {
         background-color: #003366 !important;
         color: white !important;
@@ -74,7 +80,6 @@ def load_data():
         return data.dropna(subset=['Date_DT', 'Horaire'])
     except: return pd.DataFrame()
 
-# --- GÉNÉRATEUR D'IMAGE ---
 def generer_image_planning(df_view, week_days, simu_name):
     W, H = 1000, 1200
     img = Image.new('RGB', (W, H), color='white')
@@ -125,7 +130,6 @@ monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).w
 week_days = [monday + timedelta(days=i) for i in range(5)]
 df_view = df[df['Simu'].str.strip().str.upper() == simu_sel.upper()]
 
-# Téléchargement mis à jour
 st.sidebar.divider()
 img_bin = generer_image_planning(df_view, week_days, simu_sel)
 st.sidebar.download_button(
