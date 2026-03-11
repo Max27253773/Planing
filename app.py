@@ -22,7 +22,7 @@ QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
 
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
 
-# --- STYLE CSS (Retour au visuel initial fonctionnel) ---
+# --- STYLE CSS (Visuel avec inversion des lignes) ---
 st.markdown("""
     <style>
     .slot-container { display: flex !important; flex-direction: row !important; gap: 2px !important; width: 100% !important; height: 100%; }
@@ -32,12 +32,16 @@ st.markdown("""
         color: #000 !important; text-align: center !important; font-weight: bold; 
         min-height: 40px; display: flex; align-items: center; justify-content: center;
     }
-    .time-col-full { font-size: 14px; font-weight: 800; color: #003366; text-align: right; padding-right: 15px; border-right: 4px solid #003366; background-color: #f0f2f6; }
-    .time-col-half { font-size: 12px; font-weight: 400; color: #666; text-align: right; padding-right: 15px; border-right: 4px solid #99abc0; }
     
-    /* Configuration initiale : Pointillés pour l'heure, Pleine pour la demi */
-    .grid-line-hour { border-bottom: 1px dashed #cfd8dc; height: 45px; }
-    .grid-line-min { border-bottom: 2px solid #b0bec5; height: 45px; background-color: rgba(0, 51, 102, 0.02); }
+    /* Colonne de temps : Heures pleines en GRAS, Demi-heures en ITALIQUE */
+    .time-col-full { font-size: 14px; font-weight: 900; color: #003366; text-align: right; padding-right: 15px; border-right: 4px solid #003366; }
+    .time-col-half { font-size: 13px; font-style: italic; font-weight: 400; color: #555; text-align: right; padding-right: 15px; border-right: 4px solid #99abc0; }
+    
+    /* Grille : Inversion demandée */
+    /* Heure pleine (ex: 13h00) -> Ligne pleine */
+    .grid-line-hour { border-bottom: 2px solid #888; height: 45px; background-color: rgba(0,0,0,0.02); }
+    /* Demi-heure (ex: 13h30) -> Ligne en pointillés */
+    .grid-line-min { border-bottom: 1px dashed #ccc; height: 45px; }
     
     .day-header { text-align: center; background-color: #003366; color: white; padding: 10px; border-radius: 4px; font-weight: bold; margin-bottom: 10px; }
     </style>
@@ -88,6 +92,8 @@ if menu == "📅 Planning Hebdomadaire":
     for q in QUARTS_HEURES:
         row_cols = st.columns([0.6] + [1]*5)
         is_pile = q.endswith(":00")
+        
+        # Style de l'heure : Gras pour pile, Italique pour demi
         time_class = "time-col-full" if is_pile else "time-col-half"
         row_cols[0].markdown(f"<div class='{time_class}'>{q}</div>", unsafe_allow_html=True)
         
@@ -101,43 +107,67 @@ if menu == "📅 Planning Hebdomadaire":
                         html += f'<div class="calendar-cell" style="background-color: {color};" title="{r["Simu"]}">{r["Equipage"]}</div>'
                     st.markdown(html + '</div>', unsafe_allow_html=True)
                 else:
+                    # Application du style de ligne inversé
                     grid_class = "grid-line-hour" if is_pile else "grid-line-min"
                     st.markdown(f"<div class='{grid_class}'></div>", unsafe_allow_html=True)
 
-# --- 2. STATISTIQUES ---
+# --- 2. STATISTIQUES (VERROUILLÉES) ---
 elif menu == "📊 Statistiques":
-    st.title("📊 Statistiques")
+    st.title("📊 Statistiques d'Utilisation")
     if not df.empty:
-        st.bar_chart(df['Simu'].value_counts())
+        col1, col2 = st.columns(2)
+        with col1: 
+            st.subheader("Utilisation par Simulateur")
+            st.bar_chart(df['Simu'].value_counts())
+        with col2: 
+            st.subheader("Top 10 des Équipages")
+            st.bar_chart(df['Equipage'].value_counts().head(10))
+        st.divider()
+        st.subheader("Journal des Réservations")
         st.dataframe(df.drop(columns=['Date_DT']), use_container_width=True)
 
-# --- 3. ADMINISTRATION ---
+# --- 3. ADMINISTRATION (VERROUILLÉE) ---
 elif menu == "🔐 Administration":
-    st.title("⚙️ Gestion")
+    st.title("⚙️ Gestion du Planning")
     pwd = st.sidebar.text_input("Mot de passe", type="password")
+    
     if pwd == ADMIN_PASSWORD:
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
+        def format_resa(idx):
+            r = df.loc[idx]
+            return f"{r['Date']} | {r['Horaire']} | {r['Simu']} | {r['Equipage']}"
         
         with tab1:
             with st.form("form_add", clear_on_submit=True):
-                d = st.date_input("Date", format="DD/MM/YYYY")
-                eq = st.text_input("Équipage")
-                hr = st.text_input("Horaire (ex: 08:00 - 12:00)")
+                d = st.date_input("Date de la réservation", format="DD/MM/YYYY")
+                eq = st.text_input("Nom de l'équipage")
+                hr = st.text_input("Horaire (ex: 08h30 - 12h00)")
                 sm = st.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
-                if st.form_submit_button("Valider l'ajout"):
+                if st.form_submit_button("VALIDER L'AJOUT"):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d.strftime("%d/%m/%Y"),"equipage":eq,"horaire":hr,"simu":sm}))
-                    st.success("Ajouté !"); time.sleep(1); st.rerun()
+                    st.success("Réservation enregistrée !"); time.sleep(1); st.rerun()
         
         with tab2:
             if not df.empty:
-                idx = st.selectbox("Ligne à modifier", df.index)
+                idx = st.selectbox("Choisir la réservation à modifier", df.index, format_func=format_resa)
                 with st.form("form_edit"):
-                    ed = st.date_input("Date", value=df.loc[idx,'Date_DT'], format="DD/MM/YYYY")
+                    ed = st.date_input("Nouvelle date", value=df.loc[idx,'Date_DT'], format="DD/MM/YYYY")
                     ee = st.text_input("Équipage", df.loc[idx,'Equipage'])
                     eh = st.text_input("Horaire", df.loc[idx,'Horaire'])
-                    es = st.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
-                    if st.form_submit_button("Modifier"):
+                    es = st.selectbox("Simulateur", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(str(df.loc[idx,'Simu']).strip()) if str(df.loc[idx,'Simu']).strip() in SIMU_CONFIG else 0)
+                    if st.form_submit_button("METTRE À JOUR"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"update","row":int(idx)+2,"date":ed.strftime("%d/%m/%Y"),"equipage":ee,"horaire":eh,"simu":es}))
-                        st.success("Modifié !"); time.sleep(1); st.rerun()
-    else:
-        st.info("Veuillez saisir le mot de passe.")
+                        st.success("Mise à jour réussie !"); time.sleep(1); st.rerun()
+        
+        with tab3:
+            if not df.empty:
+                target = st.selectbox("Choisir la réservation à supprimer", df.index, format_func=format_resa)
+                if st.button("❌ Supprimer la ligne"): st.session_state['confirm_del'] = True
+                if st.session_state.get('confirm_del'):
+                    st.warning(f"Confirmer la suppression ?")
+                    if st.button("OUI, SUPPRIMER"):
+                        requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(target)+2}))
+                        st.session_state['confirm_del'] = False
+                        st.success("Supprimé !"); time.sleep(1); st.rerun()
+    else: 
+        st.info("Veuillez entrer le mot de passe dans la barre latérale.")
