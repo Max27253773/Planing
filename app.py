@@ -16,12 +16,12 @@ def extraire_heures(horaire_str):
     """Calcule la durée à partir d'une chaîne type '08h-12h' ou '4h'"""
     try:
         nombres = re.findall(r'\d+', str(horaire_str))
-        if len(nombres) == 2: # Format "08-12"
+        if len(nombres) >= 2: # Format "08-12" ou "08h12h"
             duree = int(nombres[1]) - int(nombres[0])
             return abs(duree)
-        elif len(nombres) == 1: # Format "4h"
+        elif len(nombres) == 1: # Format "4" ou "4h"
             return int(nombres[0])
-        return 4 # Valeur par défaut si format inconnu
+        return 4 # Valeur par défaut
     except:
         return 4
 
@@ -32,7 +32,6 @@ def load_data():
         data = pd.read_csv(url_force)
         data['Date_DT'] = pd.to_datetime(data['Date'], errors='coerce')
         data['Annee'] = data['Date_DT'].dt.year.fillna(0).astype(int)
-        # Calcul de la colonne Heures
         data['Heures'] = data['Horaire'].apply(extraire_heures)
         return data
     except:
@@ -42,22 +41,25 @@ df = load_data()
 
 menu = st.sidebar.selectbox("Menu", ["Consulter le Planning", "Statistiques Heures 📊", "Administration 🔐"])
 
+# --- VUE CONSULTATION ---
 if menu == "Consulter le Planning":
     st.subheader("🗓️ Séances programmées")
-    df_sorted = df.sort_values(by='Date_DT', ascending=True)
-    for _, row in df_sorted.iterrows():
-        d_fmt = row['Date_DT'].strftime('%d/%m/%Y') if pd.notnull(row['Date_DT']) else str(row['Date'])
-        with st.expander(f"📅 {d_fmt} — {row['Equipage']}"):
-            st.write(f"**⏰ Horaire :** {row['Horaire']} ({row['Heures']}h)")
-            st.write(f"**🖥️ Simu :** {row['Simu']}")
-
-elif menu == "Statistiques Heures 📊":
-    st.subheader("📈 Bilan des heures de vol simu")
-    
     if df.empty:
-        st.info("Aucune donnée.")
+        st.info("Le planning est vide.")
     else:
-        # Filtre par année en haut
+        df_sorted = df.sort_values(by='Date_DT', ascending=True)
+        for _, row in df_sorted.iterrows():
+            d_fmt = row['Date_DT'].strftime('%d/%m/%Y') if pd.notnull(row['Date_DT']) else str(row['Date'])
+            with st.expander(f"📅 {d_fmt} — {row['Equipage']}"):
+                st.write(f"**⏰ Horaire :** {row['Horaire']} ({row['Heures']}h)")
+                st.write(f"**🖥️ Simu :** {row['Simu']}")
+
+# --- VUE STATISTIQUES ---
+elif menu == "Statistiques Heures 📊":
+    st.subheader("📈 Bilan des heures par équipage")
+    if df.empty:
+        st.info("Aucune donnée disponible.")
+    else:
         annees_dispo = sorted(df[df['Annee'] > 0]['Annee'].unique(), reverse=True)
         annee_sel = st.selectbox("Filtrer par année", ["Toutes"] + list(annees_dispo))
         
@@ -65,36 +67,66 @@ elif menu == "Statistiques Heures 📊":
         if annee_sel != "Toutes":
             df_stats = df_stats[df_stats['Annee'] == annee_sel]
 
-        # Métriques
         c1, c2 = st.columns(2)
         c1.metric("Total Heures", f"{df_stats['Heures'].sum()} h")
-        c2.metric("Moyenne / Équipage", f"{round(df_stats.groupby('Equipage')['Heures'].sum().mean(), 1)} h")
+        c2.metric("Équipages actifs", df_stats['Equipage'].nunique())
 
-        st.divider()
-
-        # Graphique des heures par équipage
-        st.write(f"### Heures effectuées par équipage ({annee_sel})")
-        chart_data = df_stats.groupby('Equipage')['Heures'].sum().sort_values(ascending=False)
-        st.bar_chart(chart_data)
-
-        # Tableau croisé : Lignes = Équipages | Colonnes = Années
-        st.write("### Récapitulatif Annuel Détaillé (Heures)")
+        st.write(f"### Récapitulatif Heures / Année")
         df_valid = df[df['Annee'] > 0]
         if not df_valid.empty:
-            pivot_h = df_valid.pivot_table(
-                index='Equipage', 
-                columns='Annee', 
-                values='Heures', 
-                aggfunc='sum', 
-                fill_value=0
-            )
-            # Ajout d'une colonne Total
+            pivot_h = df_valid.pivot_table(index='Equipage', columns='Annee', values='Heures', aggfunc='sum', fill_value=0)
             pivot_h['Total Cumulé'] = pivot_h.sum(axis=1)
-            st.dataframe(pivot_h.style.highlight_max(axis=0, color='#2E7D32'))
-        
+            st.dataframe(pivot_h.sort_values(by='Total Cumulé', ascending=False))
+
+# --- VUE ADMINISTRATION (RÉTABLIE) ---
 elif menu == "Administration 🔐":
-    # (Le code d'administration reste le même que le précédent)
     pwd = st.sidebar.text_input("Code Admin", type="password")
     if pwd == "1234":
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
-        # ... (insérer ici vos blocs tab1, tab2, tab3 du code précédent)
+
+        with tab1:
+            with st.form("add_form", clear_on_submit=True):
+                d = st.date_input("Date")
+                e = st.text_input("Equipage")
+                h = st.text_input("Horaire (ex: 08-12)")
+                s = st.selectbox("Simu", ["SIM 1", "SIM 2", "SIM 3"])
+                if st.form_submit_button("Valider l'ajout"):
+                    payload = {"action": "add", "date": str(d), "equipage": e, "horaire": h, "simu": s}
+                    requests.post(SCRIPT_URL, data=json.dumps(payload))
+                    st.success("✅ Ajouté !")
+                    st.cache_data.clear()
+
+        with tab2:
+            if not df.empty:
+                df['label_edit'] = df['Date'].astype(str) + " | " + df['Equipage'].astype(str) + " (" + df['Horaire'].astype(str) + ")"
+                choix = st.selectbox("Sélectionner la séance", options=df['label_edit'].tolist())
+                idx = df[df['label_edit'] == choix].index[0]
+                row_sel = df.loc[idx]
+                with st.form("edit_form"):
+                    new_d = st.date_input("Date", value=pd.to_datetime(row_sel['Date']))
+                    new_e = st.text_input("Equipage", value=row_sel['Equipage'])
+                    new_h = st.text_input("Horaire", value=row_sel['Horaire'])
+                    new_s = st.selectbox("Simu", ["SIM 1", "SIM 2", "SIM 3"], index=["SIM 1", "SIM 2", "SIM 3"].index(row_sel['Simu']) if row_sel['Simu'] in ["SIM 1", "SIM 2", "SIM 3"] else 0)
+                    if st.form_submit_button("Enregistrer"):
+                        payload = {"action": "edit", "row_index": int(idx), "new_date": str(new_d), "new_equipage": new_e, "new_horaire": new_h, "new_simu": new_s}
+                        requests.post(SCRIPT_URL, data=json.dumps(payload))
+                        st.success("📝 Modifié !")
+                        st.cache_data.clear()
+
+        with tab3:
+            if not df.empty:
+                df['label_del'] = df['Date'].astype(str) + " | " + df['Equipage'].astype(str) + " (" + df['Horaire'].astype(str) + ")"
+                choix_del = st.selectbox("Séance à supprimer", options=df['label_del'].tolist())
+                idx_del = df[df['label_del'] == choix_del].index[0]
+                st.warning("⚠️ Attention : suppression définitive.")
+                confirm = st.checkbox("Je confirme la suppression")
+                if st.button("🗑️ Supprimer"):
+                    if confirm:
+                        payload = {"action": "delete", "row_index": int(idx_del)}
+                        requests.post(SCRIPT_URL, data=json.dumps(payload))
+                        st.success("Supprimé !")
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
+    else:
+        st.info("Entrez le code admin.")
