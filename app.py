@@ -10,43 +10,32 @@ SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvq
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhetuY5QpJEvl-Wv1BMGej5FeW6S3-WDcbS1DwcwUVT-Yt3e8th1XG9pPCcbrwPu5ITw/exec"
 
 st.set_page_config(page_title="Planning Simu Pro", layout="wide")
-st.title("✈️ Gestion & Suivi des Heures")
 
-# --- LOGIQUE DE CALCUL PRÉCISE (Minutes comprises) ---
+# --- STYLE PERSONNALISÉ ---
+st.markdown("""
+    <style>
+    .main { background-color: #f5f7f9; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("✈️ Dashboard Simulateur")
+
+# --- LOGIQUE DE CALCUL ---
 def extraire_heures_precises(horaire_str):
-    """Calcule la durée précise même avec des minutes (ex: '13h30 - 17h00' -> 3.5)"""
     try:
-        # On cherche tous les blocs de chiffres (heures et minutes)
-        # Format attendu : "13h30 - 17h00" ou "13:30 - 17:00"
         blocs = re.findall(r'(\d+)[h:]?(\d+)?', str(horaire_str))
-        
         if len(blocs) >= 2:
-            # Heure de début
-            h1 = int(blocs[0][0])
-            m1 = int(blocs[0][1]) if blocs[0][1] else 0
-            
-            # Heure de fin
-            h2 = int(blocs[1][0])
-            m2 = int(blocs[1][1]) if blocs[1][1] else 0
-            
-            # Conversion en minutes totales depuis minuit
-            debut_minutes = (h1 * 60) + m1
-            fin_minutes = (h2 * 60) + m2
-            
-            # Calcul de la durée en heures décimales
-            duree_heures = (fin_minutes - debut_minutes) / 60
-            return round(abs(duree_heures), 2)
-        
-        # Si un seul nombre est présent (ex: "4h")
-        nombres_seuls = re.findall(r'\d+', str(horaire_str))
-        if len(nombres_seuls) == 1:
-            return float(nombres_seuls[0])
-            
-        return 4.0 # Valeur par défaut
-    except:
-        return 4.0
+            h1, m1 = int(blocs[0][0]), int(blocs[0][1]) if blocs[0][1] else 0
+            h2, m2 = int(blocs[1][0]), int(blocs[1][1]) if blocs[1][1] else 0
+            debut = (h1 * 60) + m1
+            fin = (h2 * 60) + m2
+            return round(abs(fin - debut) / 60, 2)
+        nombres = re.findall(r'\d+', str(horaire_str))
+        return float(nombres[0]) if len(nombres) == 1 else 4.0
+    except: return 4.0
 
-# --- CHARGEMENT DES DONNÉES ---
+# --- CHARGEMENT ---
 @st.cache_data(ttl=2)
 def load_data():
     try:
@@ -54,108 +43,105 @@ def load_data():
         data = pd.read_csv(url_force)
         data['Date_DT'] = pd.to_datetime(data['Date'], errors='coerce')
         data['Annee'] = data['Date_DT'].dt.year.fillna(0).astype(int)
-        # Nouveau calcul précis
+        data['Mois'] = data['Date_DT'].dt.strftime('%m - %b')
         data['Heures'] = data['Horaire'].apply(extraire_heures_precises)
         return data
-    except:
-        return pd.DataFrame(columns=["Date", "Equipage", "Horaire", "Simu", "Annee", "Heures"])
+    except: return pd.DataFrame(columns=["Date", "Equipage", "Horaire", "Simu", "Annee", "Heures"])
 
 df = load_data()
 
-# --- BARRE LATÉRALE ---
-menu = st.sidebar.selectbox("Menu", ["Consulter le Planning", "Statistiques Heures 📊", "Administration 🔐"])
+menu = st.sidebar.selectbox("Navigation", ["📅 Planning", "📊 Statistiques Visuelles", "🔐 Admin"])
 
-# --- 1. VUE CONSULTATION ---
-if menu == "Consulter le Planning":
-    st.subheader("🗓️ Séances programmées")
-    if df.empty:
-        st.info("Le planning est vide.")
+# --- 1. PLANNING VISUEL ---
+if menu == "📅 Planning":
+    st.subheader("Séances à venir")
+    if df.empty: st.info("Aucun vol prévu.")
     else:
         df_sorted = df.sort_values(by='Date_DT', ascending=True)
         for _, row in df_sorted.iterrows():
-            d_fmt = row['Date_DT'].strftime('%d/%m/%Y') if pd.notnull(row['Date_DT']) else str(row['Date'])
-            with st.expander(f"📅 {d_fmt} — {row['Equipage']}"):
-                st.write(f"**⏰ Horaire :** {row['Horaire']} ({row['Heures']}h)")
-                st.write(f"**🖥️ Simulateur :** {row['Simu']}")
+            d_fmt = row['Date_DT'].strftime('%d %B %Y') if pd.notnull(row['Date_DT']) else str(row['Date'])
+            with st.container():
+                col_a, col_b, col_c = st.columns([1, 2, 1])
+                col_a.write(f"**{d_fmt}**")
+                col_b.info(f"👨‍✈️ {row['Equipage']} | ⏰ {row['Horaire']}")
+                col_c.success(f"🖥️ {row['Simu']}")
+                st.divider()
 
-# --- 2. VUE STATISTIQUES ---
-elif menu == "Statistiques Heures 📊":
-    st.subheader("📈 Bilan des heures par équipage")
-    if df.empty:
-        st.info("Aucune donnée disponible.")
+# --- 2. STATISTIQUES VISUELLES ---
+elif menu == "📊 Statistiques Visuelles":
+    if df.empty: st.info("Pas de données.")
     else:
-        annees_dispo = sorted(df[df['Annee'] > 0]['Annee'].unique(), reverse=True)
-        annee_sel = st.selectbox("Filtrer par année", ["Toutes"] + list(annees_dispo))
-        
-        df_stats = df.copy()
-        if annee_sel != "Toutes":
-            df_stats = df_stats[df_stats['Annee'] == annee_sel]
+        # Filtre Année simple
+        annees = sorted(df[df['Annee'] > 0]['Annee'].unique(), reverse=True)
+        sel_annee = st.selectbox("Sélectionner l'année", annees)
+        df_an = df[df['Annee'] == sel_annee]
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Heures", f"{round(df_stats['Heures'].sum(), 1)} h")
-        c2.metric("Séances", len(df_stats))
-        c3.metric("Équipages", df_stats['Equipage'].nunique())
+        # --- KEY METRICS ---
+        st.write(f"### 🎯 Bilan {sel_annee}")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total Heures", f"{round(df_an['Heures'].sum(), 1)}h")
+        m2.metric("Moyenne / Vol", f"{round(df_an['Heures'].mean(), 1)}h")
+        m3.metric("Équipages", df_an['Equipage'].nunique())
+        m4.metric("Séances", len(df_an))
 
         st.divider()
-        st.write("### Récapitulatif Annuel des Heures")
-        df_valid = df[df['Annee'] > 0]
-        if not df_valid.empty:
-            pivot_h = df_valid.pivot_table(index='Equipage', columns='Annee', values='Heures', aggfunc='sum', fill_value=0)
-            pivot_h['Total Cumulé'] = pivot_h.sum(axis=1)
-            st.dataframe(pivot_h.sort_values(by='Total Cumulé', ascending=False), use_container_width=True)
-            st.bar_chart(df_stats.groupby('Equipage')['Heures'].sum())
 
-# --- 3. VUE ADMINISTRATION ---
-elif menu == "Administration 🔐":
-    pwd = st.sidebar.text_input("Code Admin", type="password")
+        # --- GRAPHIQUES ---
+        col_left, col_right = st.columns(2)
+        
+        with col_left:
+            st.write("#### 🥧 Répartition par Équipage")
+            # Graphique Donut (Heures cumulées)
+            pie_data = df_an.groupby('Equipage')['Heures'].sum()
+            st.bar_chart(pie_data) # Streamlit native bar chart est très propre
+            
+        with col_right:
+            st.write("#### 📅 Activité Mensuelle")
+            # Graphique de l'évolution par mois
+            monthly_data = df_an.groupby('Mois')['Heures'].sum()
+            st.line_chart(monthly_data)
+
+        st.write("#### 🏆 Classement des Équipages (Heures)")
+        # Un classement horizontal visuel
+        st.dataframe(
+            df_an.groupby('Equipage')['Heures'].sum().sort_values(ascending=False),
+            use_container_width=True
+        )
+
+# --- 3. ADMINISTRATION ---
+elif menu == "🔐 Admin":
+    pwd = st.sidebar.text_input("Code", type="password")
     if pwd == "1234":
-        tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
-
-        with tab1:
-            with st.form("add_form", clear_on_submit=True):
-                d = st.date_input("Date")
-                e = st.text_input("Equipage")
-                h = st.text_input("Horaire (ex: 13h30 - 17h00)")
+        t1, t2, t3 = st.tabs(["Ajouter", "Modifier", "Supprimer"])
+        with t1:
+            with st.form("add"):
+                d, e, h = st.date_input("Date"), st.text_input("Equipage"), st.text_input("Horaire (ex: 13h30-17h)")
                 s = st.selectbox("Simu", ["SIM 1", "SIM 2", "SIM 3"])
-                if st.form_submit_button("Valider l'ajout"):
-                    payload = {"action": "add", "date": str(d), "equipage": e, "horaire": h, "simu": s}
-                    requests.post(SCRIPT_URL, data=json.dumps(payload))
-                    st.success("✅ Séance ajoutée !")
+                if st.form_submit_button("Valider"):
+                    requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":str(d),"equipage":e,"horaire":h,"simu":s}))
+                    st.success("Ajouté !")
                     st.cache_data.clear()
-
-        with tab2:
+        
+        with t2:
             if not df.empty:
-                df['label_edit'] = df['Date'].astype(str) + " | " + df['Equipage'].astype(str) + " (" + df['Horaire'].astype(str) + ")"
-                choix = st.selectbox("Modifier une séance", options=df['label_edit'].tolist())
-                idx = df[df['label_edit'] == choix].index[0]
-                row_sel = df.loc[idx]
-                with st.form("edit_form"):
-                    new_d = st.date_input("Date", value=pd.to_datetime(row_sel['Date']))
-                    new_e = st.text_input("Equipage", value=row_sel['Equipage'])
-                    new_h = st.text_input("Horaire", value=row_sel['Horaire'])
-                    simu_list = ["SIM 1", "SIM 2", "SIM 3"]
-                    cur_idx = simu_list.index(row_sel['Simu']) if row_sel['Simu'] in simu_list else 0
-                    new_s = st.selectbox("Simu", simu_list, index=cur_idx)
-                    if st.form_submit_button("Enregistrer"):
-                        payload = {"action": "edit", "row_index": int(idx), "new_date": str(new_d), "new_equipage": new_e, "new_horaire": new_h, "new_simu": new_s}
-                        requests.post(SCRIPT_URL, data=json.dumps(payload))
-                        st.success("📝 Mis à jour !")
+                df['label'] = df['Date'].astype(str) + " | " + df['Equipage']
+                sel = st.selectbox("Séance", df['label'].tolist())
+                idx = df[df['label'] == sel].index[0]
+                row = df.loc[idx]
+                with st.form("edit"):
+                    nd, ne, nh = st.date_input("Date", pd.to_datetime(row['Date'])), st.text_input("Equipage", row['Equipage']), st.text_input("Horaire", row['Horaire'])
+                    ns = st.selectbox("Simu", ["SIM 1", "SIM 2", "SIM 3"], index=["SIM 1", "SIM 2", "SIM 3"].index(row['Simu']))
+                    if st.form_submit_button("Modifier"):
+                        requests.post(SCRIPT_URL, data=json.dumps({"action":"edit","row_index":int(idx),"new_date":str(nd),"new_equipage":ne,"new_horaire":nh,"new_simu":ns}))
                         st.cache_data.clear()
-
-        with tab3:
+        
+        with t3:
             if not df.empty:
-                df['label_del'] = df['Date'].astype(str) + " | " + df['Equipage'].astype(str) + " (" + df['Horaire'].astype(str) + ")"
-                choix_del = st.selectbox("Supprimer une séance", options=df['label_del'].tolist())
-                idx_del = df[df['label_del'] == choix_del].index[0]
-                st.warning("⚠️ Action définitive.")
-                confirm = st.checkbox("Confirmer la suppression")
-                if st.button("🗑️ Supprimer"):
-                    if confirm:
-                        payload = {"action": "delete", "row_index": int(idx_del)}
-                        requests.post(SCRIPT_URL, data=json.dumps(payload))
-                        st.success("Supprimé !")
+                df['label_del'] = df['Date'].astype(str) + " | " + df['Equipage']
+                sel_d = st.selectbox("Supprimer", df['label_del'].tolist())
+                idx_d = df[df['label_del'] == sel_d].index[0]
+                if st.checkbox("Confirmer la suppression"):
+                    if st.button("🗑️ Supprimer"):
+                        requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row_index":int(idx_d)}))
                         st.cache_data.clear()
-                        time.sleep(1)
                         st.rerun()
-    else:
-        st.info("Entrez le code administrateur.")
