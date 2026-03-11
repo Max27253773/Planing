@@ -8,7 +8,7 @@ import io
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
-# --- CONFIGURATION (VERROUILLÉE) ---
+# --- CONFIGURATION ---
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/export?format=csv&gid=0"
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhetuY5QpJEvl-Wv1BMGej5FeW6S3-WDcbS1DwcwUVT-Yt3e8th1XG9pPCcbrwPu5ITw/exec"
 ADMIN_PASSWORD = "1234" 
@@ -22,18 +22,11 @@ SIMU_CONFIG = {
 
 QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
 
-# Configuration de la page avec un layout large
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
 
-# --- STYLE CSS (RETOUR À LA STABILITÉ) ---
+# --- STYLE CSS (PLANNING UNIQUEMENT) ---
 st.markdown("""
     <style>
-    /* Fond gris de l'application sans casser le moteur Streamlit */
-    .stApp {
-        background-color: #F4F7F9;
-    }
-    
-    /* On garde les styles du planning */
     .slot-wrapper { position: relative; width: 100%; height: 45px; }
     .calendar-cell-unique { 
         position: absolute; top: 2px; left: 2px; right: 2px;
@@ -49,7 +42,6 @@ st.markdown("""
     .grid-line-min { border-bottom: 1px dashed #ccc; height: 45px; }
     .day-header { text-align: center; background-color: #003366; color: white; padding: 10px; border-radius: 4px; font-weight: bold; margin-bottom: 10px; }
     
-    /* Bouton Télécharger Planning */
     div.stDownloadButton > button {
         background-color: #003366 !important;
         color: white !important;
@@ -86,18 +78,14 @@ def generer_image_planning(df_view, week_days, simu_name):
     draw = ImageDraw.Draw(img)
     navy, gray = (0, 51, 102), (200, 200, 200)
     bg_simu = SIMU_CONFIG.get(simu_name.upper(), "#B3E5FC")
-    
     draw.rectangle([0, 0, W, 80], fill=navy)
     draw.text((W//2 - 100, 25), f"PLANNING : {simu_name}", fill='white')
-
     col_w, row_h = (W - 100) // 5, (H - 120) // len(QUARTS_HEURES)
     jours_fr = ["Lun", "Mar", "Mer", "Jeu", "Ven"]
-    
     for i, d in enumerate(week_days):
         x = 100 + i * col_w
         draw.rectangle([x, 80, x + col_w, 120], outline='black', fill=(240, 240, 240))
         draw.text((x + 10, 90), f"{jours_fr[i]} {d.strftime('%d/%m')}", fill='black')
-
     for j, q in enumerate(QUARTS_HEURES):
         y = 120 + j * row_h
         draw.text((10, y + 5), q, fill=navy)
@@ -112,7 +100,6 @@ def generer_image_planning(df_view, week_days, simu_name):
                     y_fin = y + int((h_fin - h_deb) * 2 * row_h)
                     draw.rectangle([x_pos+2, y+2, x_pos+col_w-2, y_fin-2], fill=bg_simu, outline='black')
                     draw.text((x_pos+5, y+10), str(r['Equipage'])[:15], fill='black')
-
     img_byte_arr = io.BytesIO()
     img.save(img_byte_arr, format='PNG')
     return img_byte_arr.getvalue()
@@ -132,12 +119,7 @@ df_view = df[df['Simu'].str.strip().str.upper() == simu_sel.upper()]
 
 st.sidebar.divider()
 img_bin = generer_image_planning(df_view, week_days, simu_sel)
-st.sidebar.download_button(
-    label="📸 Télécharger Planning",
-    data=img_bin,
-    file_name=f"Planning_{simu_sel}_S{semaine_sel}.png",
-    mime="image/png"
-)
+st.sidebar.download_button(label="📸 Télécharger Planning", data=img_bin, file_name=f"Planning_{simu_sel}_S{semaine_sel}.png", mime="image/png")
 
 if menu == "📅 Planning":
     st.title(f"⚓ Planning : {simu_sel}")
@@ -145,7 +127,6 @@ if menu == "📅 Planning":
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
     for i, d in enumerate(week_days):
         cols[i+1].markdown(f"<div class='day-header'>{jours_fr[i]}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
-
     color_active = SIMU_CONFIG.get(simu_sel, "#EEEEEE")
     for q in QUARTS_HEURES:
         if q == "20:30": continue
@@ -154,7 +135,6 @@ if menu == "📅 Planning":
         h_act = int(q.split(':')[0]) + int(q.split(':')[1])/60
         t_class = "time-col-full" if is_pile else "time-col-half"
         row_cols[0].markdown(f"<div class='{t_class}'>{q}</div>", unsafe_allow_html=True)
-        
         for i, d in enumerate(week_days):
             with row_cols[i+1]:
                 resas = df_view[df_view['Date_DT'].dt.date == d.date()]
@@ -179,7 +159,6 @@ elif menu == "🔐 Administration":
         def format_resa(idx):
             r = df.loc[idx]
             return f"{r['Date']} | {r['Horaire']} | {r['Simu']} | {r['Equipage']}"
-            
         with tab1:
             with st.form("a", clear_on_submit=True):
                 d = st.date_input("Date")
