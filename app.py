@@ -11,14 +11,6 @@ SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhetuY5QpJEvl-Wv1BMGej5Fe
 
 st.set_page_config(page_title="Suivi Simulateur Naval", layout="wide", page_icon="⚓")
 
-# --- STYLE ÉPURÉ ---
-st.markdown("""
-    <style>
-    [data-testid="stMetricValue"] { font-size: 30px; color: #003366; }
-    .stMetric { background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6; }
-    </style>
-    """, unsafe_allow_html=True)
-
 # --- CALCUL DES DURÉES ---
 def extraire_heures_precises(horaire_str):
     try:
@@ -52,50 +44,39 @@ if menu == "📅 Planning":
     st.header("🗓️ Planning des entraînements")
     if df.empty: st.info("Aucune séance enregistrée.")
     else:
-        df_sorted = df.sort_values(by='Date_DT', ascending=False) # Plus récent en premier
+        df_sorted = df.sort_values(by='Date_DT', ascending=False)
         for _, row in df_sorted.iterrows():
             d_fmt = row['Date_DT'].strftime('%d/%m/%Y') if pd.notnull(row['Date_DT']) else str(row['Date'])
-            st.write(f"**{d_fmt}** | {row['Equipage']} | {row['Horaire']} | {row['Simu']}")
-            st.divider()
+            st.info(f"**{d_fmt}** | {row['Equipage']} | {row['Horaire']} | {row['Simu']}")
 
-# --- 2. RÉSUMÉ CLAIR (STATISTIQUES) ---
+# --- 2. RÉSUMÉ D'ACTIVITÉ (SANS CSS FORCÉ) ---
 elif menu == "📊 Résumé d'Activité":
     st.header("📊 Synthèse de l'entraînement naval")
     if df.empty: st.info("Données insuffisantes.")
     else:
         annees = sorted(df[df['Annee'] > 0]['Annee'].unique(), reverse=True)
-        sel_annee = st.selectbox("Sélectionner l'année de référence", annees)
+        sel_annee = st.selectbox("Sélectionner l'année", annees)
         df_an = df[df['Annee'] == sel_annee]
 
-        # --- CHIFFRES CLÉS ---
-        st.subheader(f"Indicateurs globaux - Année {sel_annee}")
+        # On utilise des boîtes de couleur natives pour les chiffres
+        st.subheader(f"Chiffres clés - {sel_annee}")
         c1, c2, c3 = st.columns(3)
-        c1.metric("Volume total", f"{round(df_an['Heures'].sum(), 1)} h")
-        c2.metric("Nombre d'équipages", df_an['Equipage'].nunique())
-        c3.metric("Séances effectuées", len(df_an))
+        with c1: st.success(f"**Volume total** \n### {round(df_an['Heures'].sum(), 1)} h")
+        with c2: st.info(f"**Équipages** \n### {df_an['Equipage'].nunique()}")
+        with c3: st.warning(f"**Séances** \n### {len(df_an)}")
 
         st.divider()
-
-        # --- RÉPARTITION ÉQUIPAGES ---
-        st.subheader("Répartition du temps d'entraînement par équipage")
-        # On groupe par équipage et on fait la somme des heures
+        st.subheader("Répartition par équipage (Heures)")
         stats_crew = df_an.groupby('Equipage')['Heures'].sum().reset_index()
-        stats_crew = stats_crew.sort_values(by='Heures', ascending=False)
-        
-        # Graphique à barres horizontal (très lisible pour les noms d'équipages)
-        st.bar_chart(data=stats_crew, x='Equipage', y='Heures', color='#003366')
+        st.bar_chart(data=stats_crew.sort_values(by='Heures', ascending=False), x='Equipage', y='Heures')
 
         st.divider()
-
-        # --- TABLEAU DE SYNTHÈSE ---
-        st.subheader("Détail cumulé par équipage")
-        # Tableau simple et propre sans fioritures
+        st.subheader("Détail cumulé")
         summary_table = df_an.groupby('Equipage').agg({
             'Heures': 'sum',
             'Date': 'count'
         }).rename(columns={'Heures': 'Total Heures', 'Date': 'Nombre de Séances'})
-        
-        st.dataframe(summary_table.sort_values(by='Total Heures', ascending=False), use_container_width=True)
+        st.table(summary_table.sort_values(by='Total Heures', ascending=False))
 
 # --- 3. ADMINISTRATION ---
 elif menu == "🔐 Admin":
@@ -104,13 +85,11 @@ elif menu == "🔐 Admin":
         t1, t2, t3 = st.tabs(["Ajouter", "Modifier", "Supprimer"])
         with t1:
             with st.form("add"):
-                d, e, h = st.date_input("Date"), st.text_input("Equipage"), st.text_input("Horaire (ex: 08h30-12h00)")
+                d, e, h = st.date_input("Date"), st.text_input("Equipage"), st.text_input("Horaire")
                 s = st.selectbox("Simu", ["Simu A", "Simu B", "Simu C"])
                 if st.form_submit_button("Valider"):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":str(d),"equipage":e,"horaire":h,"simu":s}))
-                    st.success("Enregistré")
                     st.cache_data.clear()
-        
         with t2:
             if not df.empty:
                 df['label'] = df['Date'].astype(str) + " - " + df['Equipage']
@@ -123,14 +102,16 @@ elif menu == "🔐 Admin":
                     if st.form_submit_button("Modifier"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"edit","row_index":int(idx),"new_date":str(nd),"new_equipage":ne,"new_horaire":nh,"new_simu":ns}))
                         st.cache_data.clear()
-        
+                        st.rerun()
         with t3:
             if not df.empty:
                 df['label_del'] = df['Date'].astype(str) + " - " + df['Equipage']
                 sel_d = st.selectbox("Supprimer", df['label_del'].tolist())
                 idx_d = df[df['label_del'] == sel_d].index[0]
-                if st.checkbox("Confirmer la suppression"):
-                    if st.button("Supprimer définitivement"):
+                if st.checkbox("Confirmer"):
+                    if st.button("Supprimer"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row_index":int(idx_d)}))
                         st.cache_data.clear()
                         st.rerun()
+    else:
+        st.info("Entrez le code admin.")
