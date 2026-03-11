@@ -55,7 +55,7 @@ def generer_image_planning(df_view, week_days, simu_name):
     W, H = 1000, 1200
     img = Image.new('RGB', (W, H), color='white')
     draw = ImageDraw.Draw(img)
-    navy, gray_line = (0, 51, 102), (150, 150, 150) # Lignes plus sombres sur l'image
+    navy, gray_line = (0, 51, 102), (180, 180, 180)
     bg_simu = SIMU_CONFIG.get(simu_name.upper(), "#EEEEEE")
     draw.rectangle([0, 0, W, 80], fill=navy)
     draw.text((W//2 - 100, 25), f"PLANNING : {simu_name}", fill='white')
@@ -96,7 +96,7 @@ simu_sel = st.sidebar.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
 current_color = SIMU_CONFIG.get(simu_sel, "#000000")
 text_on_color = "#000000" if simu_sel in ["PHOBOS", "NEKKAR"] else "#FFFFFF"
 
-# --- CSS CORRECTIF (LIGNES ET BOUTON) ---
+# --- CSS CORRECTIF ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #FFFFFF !important; }}
@@ -106,31 +106,27 @@ st.markdown(f"""
         border-right: 2px solid #000000 !important;
     }}
 
-    /* FIX LIGNES HORAIRES : On les rend gris foncé pour qu'elles soient visibles */
-    .grid-line-hour {{ border-bottom: 2px solid #555555 !important; height: 45px; }}
-    .grid-line-min {{ border-bottom: 1px dashed #999999 !important; height: 45px; }}
+    /* SUPPRESSION DE LA BARRE HORIZONTALE SOUS LE TITRE */
+    h1 {{ border-bottom: none !important; }}
 
-    /* FIX BOUTON TÉLÉCHARGER : Texte blanc sur fond noir + icône visible */
+    /* LIGNES HORAIRES VISIBLES */
+    .grid-line-hour {{ border-bottom: 2px solid #333333 !important; height: 45px; }}
+    .grid-line-min {{ border-bottom: 1px dashed #777777 !important; height: 45px; }}
+
+    /* BOUTON TÉLÉCHARGER CONTRASTÉ */
     div.stDownloadButton > button {{
-        background-color: #000000 !important;
+        background-color: #1a1a1a !important;
         color: #FFFFFF !important;
-        border: 2px solid #444444 !important;
+        border: 2px solid #000000 !important;
         width: 100%;
         font-weight: bold !important;
-        opacity: 1 !important;
-    }}
-    div.stDownloadButton > button:hover {{
-        border: 2px solid #FFFFFF !important;
-        color: #FFFFFF !important;
+        padding: 0.5rem !important;
     }}
     
-    /* On s'assure que l'icône dans le bouton est blanche */
+    /* Force l'icône appareil photo en blanc */
     div.stDownloadButton svg {{
         fill: white !important;
-    }}
-
-    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stDateInput input {{
-        border: 2px solid #000000 !important;
+        color: white !important;
     }}
 
     .slot-wrapper {{ position: relative; width: 100%; height: 45px; }}
@@ -144,7 +140,7 @@ st.markdown(f"""
     }}
     
     .time-col-full {{ color: #000000 !important; font-weight: 900; border-right: 5px solid {current_color}; }}
-    .time-col-half {{ color: #444444 !important; font-weight: 600; border-right: 2px solid #000000; }}
+    .time-col-half {{ color: #222222 !important; font-weight: 700; border-right: 2px solid #000000; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -157,11 +153,13 @@ img_bin = generer_image_planning(df_view, week_days, simu_sel)
 st.sidebar.download_button(label="📸 Télécharger Planning", data=img_bin, file_name=f"Planning_{simu_sel}.png", mime="image/png")
 
 if menu == "📅 Planning":
-    st.markdown(f"<h1 style='color:#000000 !important; border-bottom: 4px solid {current_color};'>⚓ Planning : {simu_sel}</h1>", unsafe_allow_html=True)
+    # Titre sans la barre moche
+    st.markdown(f"<h1 style='color:#000000 !important; margin-bottom:20px;'>⚓ Planning : {simu_sel}</h1>", unsafe_allow_html=True)
+    
     cols = st.columns([0.6] + [1]*5)
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
     for i, d in enumerate(week_days):
-        cols[i+1].markdown(f"<div style='text-align:center; background-color:{current_color}; color:{text_on_color}; padding:10px; font-weight:900; border:2px solid black;'>{jours_fr[i]}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
+        cols[i+1].markdown(f"<div style='text-align:center; background-color:{current_color}; color:{text_on_color}; padding:10px; font-weight:900; border:2px solid black; box-shadow: 3px 3px 0px black;'>{jours_fr[i]}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
 
     for q in QUARTS_HEURES:
         if q == "20:30": continue
