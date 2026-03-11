@@ -3,7 +3,7 @@ import pandas as pd
 from shupdatesheet import update_sheet # On va utiliser une petite astuce de connexion
 
 # Remplacez par l'URL de votre Google Sheet créé à l'étape 1
-SHEET_URL = https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/edit?gid=0#gid=0
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/edit?gid=0#gid=0"
 # Pour transformer l'URL en lien de téléchargement CSV direct
 CSV_URL = SHEET_URL.replace("/edit#gid=", "/export?format=csv&gid=")
 
