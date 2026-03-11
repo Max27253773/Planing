@@ -19,30 +19,48 @@ SIMU_CONFIG = {
     "PERSEE": "#B2DFDB", "SAGITTAIRE": "#FFE0B2"
 }
 
+# Plage horaire : de 06:00 à 20:00
 QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
 
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
 
-# --- FONCTION DE CAPTURE (JS) ---
-def bouton_capture():
-    # Composant HTML/JS pour capturer la zone principale
-    components.html("""
+# --- FONCTION DE CAPTURE (JS) - CADRAGE CORRIGÉ ---
+def bouton_capture(nom_fichier):
+    # Composant HTML/JS pour capturer UNIQUEMENT le calendrier
+    components.html(f"""
         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <script>
-        function doCapture() {
-            // On cherche la section principale de Streamlit
-            const mainSection = window.parent.document.querySelector('section.main') || window.parent.document.body;
-            html2canvas(mainSection, {
-                backgroundColor: "#FFFFFF",
-                scale: 2,
-                useCORS: true
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = 'planning_export.png';
-                link.href = canvas.toDataURL("image/png");
-                link.click();
-            });
-        }
+        function doCapture() {{
+            // MODIFICATION ICI : On cible l'élément spécifique 'stBlock' qui contient le calendrier
+            // window.parent.document nous permet de sortir de l'iframe du composant
+            const doc = window.parent.document;
+            
+            // On cherche le conteneur du titre '⚓ Planning : ...' et on remonte d'un niveau
+            const titleEl = Array.from(doc.querySelectorAll('h1')).find(el => el.textContent.includes('⚓ Planning :'));
+            
+            if (titleEl) {{
+                // Le parent direct du titre contient généralement tout le planning
+                const calendarBlock = titleEl.closest('[data-testid="stBlock"]');
+                
+                html2canvas(calendarBlock, {{
+                    backgroundColor: "#FFFFFF",
+                    scale: 2, // Haute définition
+                    useCORS: true,
+                    // Petits ajustements pour s'assurer que tout rentre
+                    logging: false,
+                    onclone: function(clonedDoc) {{
+                        // Optionnel : masquer des éléments indésirables dans le clone avant capture
+                    }}
+                }}).then(canvas => {{
+                    const link = document.createElement('a');
+                    link.download = '{nom_fichier}.png';
+                    link.href = canvas.toDataURL("image/png");
+                    link.click();
+                }});
+            }} else {{
+                console.error("Impossible de trouver le conteneur du calendrier.");
+            }}
+        }}
         </script>
         <button onclick="doCapture()" style="
             background-color: #003366; 
@@ -53,8 +71,10 @@ def bouton_capture():
             cursor: pointer;
             font-weight: bold;
             width: 100%;
-            font-family: sans-serif;">
-            📸 Télécharger l'image du planning
+            font-family: sans-serif;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            📸 Télécharger l'IMAGE du calendrier
         </button>
     """, height=70)
 
@@ -69,12 +89,16 @@ st.markdown("""
         color: #000 !important; text-align: center; font-weight: bold;
         display: flex; align-items: center; justify-content: center;
         overflow: hidden; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        pointer-events: none; /* Évite de bloquer les clics si besoin */
     }
     .time-col-full { font-size: 14px; font-weight: 900; color: #003366; text-align: right; padding-right: 15px; border-right: 4px solid #003366; }
     .time-col-half { font-size: 13px; font-style: italic; font-weight: 400; color: #555; text-align: right; padding-right: 15px; border-right: 4px solid #99abc0; }
     .grid-line-hour { border-bottom: 2px solid #888; height: 45px; background-color: rgba(0,0,0,0.02); }
     .grid-line-min { border-bottom: 1px dashed #ccc; height: 45px; }
     .day-header { text-align: center; background-color: #003366; color: white; padding: 10px; border-radius: 4px; font-weight: bold; margin-bottom: 10px; }
+    
+    /* Pour s'assurer que html2canvas capture bien tout, on donne un fond blanc explicite */
+    [data-testid="stBlock"] { background-color: white; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -104,21 +128,26 @@ df = load_data()
 menu = st.sidebar.radio("MENU", ["📅 Planning Hebdomadaire", "📊 Statistiques", "🔐 Administration"])
 
 st.sidebar.divider()
+st.sidebar.subheader("Sélection")
 annee_sel = st.sidebar.selectbox("Année", [2025, 2026, 2027], index=1)
 semaine_sel = st.sidebar.selectbox("Semaine", range(1, 54), index=datetime.now().isocalendar()[1]-1)
 simu_sel = st.sidebar.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
 
 st.sidebar.divider()
 st.sidebar.write("💾 **Exporter**")
-bouton_capture()
+# Nom de fichier dynamique
+filename = f"Planning_{simu_sel}_S{semaine_sel}_{annee_sel}"
+bouton_capture(filename)
 
 # --- AFFICHAGE ---
 monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).weekday())) + timedelta(weeks=semaine_sel-1)
 week_days = [monday + timedelta(days=i) for i in range(5)]
 
 if menu == "📅 Planning Hebdomadaire":
+    # ATTENTION : Le titre h1 est crucial pour le sélecteur JS
     st.title(f"⚓ Planning : {simu_sel}")
     
+    # Conteneur principal pour le planning (stBlock)
     cols = st.columns([0.6] + [1]*5)
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
     for i, d in enumerate(week_days):
@@ -133,7 +162,6 @@ if menu == "📅 Planning Hebdomadaire":
         is_pile = q.endswith(":00")
         h_actuelle = int(q.split(':')[0]) + int(q.split(':')[1])/60
         
-        # Correction de la syntaxe de la classe
         t_class = "time-col-full" if is_pile else "time-col-half"
         row_cols[0].markdown(f"<div class='{t_class}'>{q}</div>", unsafe_allow_html=True)
         
