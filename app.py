@@ -22,39 +22,30 @@ QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
 
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
 
-# --- STYLE CSS (Alignement Horizontal Parfait) ---
+# --- CSS RADICAL (Tableau Propre) ---
 st.markdown("""
     <style>
-    .slot-container { display: flex !important; flex-direction: row !important; gap: 2px !important; width: 100% !important; height: 100%; align-items: center; }
+    .planning-table { width: 100%; border-collapse: collapse; font-family: sans-serif; table-layout: fixed; }
+    .planning-table th { background-color: #003366; color: white; padding: 10px; border: 1px solid #ddd; }
+    .planning-table td { height: 40px; border-left: 1px solid #ddd; border-right: 1px solid #ddd; vertical-align: middle; padding: 0 5px; position: relative; }
     
-    .calendar-cell { 
-        flex: 1 !important; padding: 4px !important; border-radius: 3px !important; 
-        font-size: 12px !important; border: 1px solid rgba(0,0,0,0.1) !important; 
-        color: #000 !important; text-align: center !important; font-weight: bold; 
-        min-height: 35px; display: flex; align-items: center; justify-content: center;
-        z-index: 2;
-    }
+    /* Lignes : Pleine pour :00, Pointillée pour :30 */
+    .row-00 { border-bottom: 2px solid #333 !important; }
+    .row-30 { border-bottom: 1px dashed #bbb !important; }
     
-    /* Conteneur de ligne pour aligner l'heure et la grille */
-    .row-wrapper { display: flex; align-items: center; height: 45px; position: relative; }
-
-    /* Style des textes horaires */
-    .txt-base { width: 60px; text-align: right; padding-right: 15px; }
-    .txt-plein { font-size: 14px !important; font-weight: 900 !important; color: #003366 !important; }
-    .txt-demi { font-size: 13px !important; font-style: italic !important; font-weight: 400 !important; color: #777 !important; }
-
-    /* Les lignes en face des horaires */
-    .line-container { flex-grow: 1; height: 100%; display: flex; align-items: center; position: relative; }
+    /* Colonne Heure */
+    .col-time { width: 80px; text-align: right; padding-right: 15px !important; border: none !important; }
+    .txt-00 { font-weight: 900; font-size: 15px; color: #003366; }
+    .txt-30 { font-style: italic; font-size: 13px; color: #666; }
     
-    .line-style { width: 100%; position: absolute; top: 50%; z-index: 1; }
-    .line-plein { border-top: 2px solid #333 !important; }
-    .line-demi { border-top: 1.5px dashed #bbb !important; }
-    
-    .day-header { text-align: center; background-color: #003366; color: white; padding: 10px; border-radius: 4px; font-weight: bold; margin-bottom: 15px; }
+    /* Conteneur de réservation */
+    .res-flex { display: flex; gap: 4px; height: 32px; align-items: center; justify-content: center; }
+    .res-item { flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; 
+                font-size: 11px; font-weight: bold; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); color: black !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIQUE CHARGEMENT ---
+# --- LOGIQUE ---
 @st.cache_data(ttl=2)
 def load_data():
     try:
@@ -79,70 +70,59 @@ def est_dans_quart_heure(horaire_str, quart_str):
 df = load_data()
 
 # --- INTERFACE ---
-menu = st.sidebar.radio("MENU", ["📅 Planning Hebdomadaire", "📊 Statistiques", "🔐 Administration"])
+menu = st.sidebar.radio("MENU", ["📅 Planning Hebdomadaire", "🔐 Administration"])
 
 if menu == "📅 Planning Hebdomadaire":
     st.title("⚓ Planning des Simulateurs")
+    
     c1, c2, _ = st.columns([1, 1, 4])
     with c1: annee_sel = st.selectbox("Année", [2025, 2026, 2027], index=1)
     with c2: semaine_sel = st.selectbox("Semaine", range(1, 54), index=datetime.now().isocalendar()[1]-1)
 
     monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).weekday())) + timedelta(weeks=semaine_sel-1)
     week_days = [monday + timedelta(days=i) for i in range(5)]
-
-    # En-têtes des jours
-    cols = st.columns([0.7] + [1]*5)
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
+
+    # Construction du tableau HTML
+    html = '<table class="planning-table"><thead><tr><th style="width:80px">Heure</th>'
     for i, d in enumerate(week_days):
-        cols[i+1].markdown(f"<div class='day-header'>{jours_fr[i]}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
+        html += f'<th>{jours_fr[i]}<br>{d.strftime("%d/%m")}</th>'
+    html += '</tr></thead><tbody>'
 
-    # Grille du planning
     for q in QUARTS_HEURES:
-        row_cols = st.columns([0.7] + [1]*5)
         is_pile = q.endswith(":00")
+        row_class = "row-00" if is_pile else "row-30"
+        txt_class = "txt-00" if is_pile else "txt-30"
         
-        # Colonne Heure
-        t_class = "txt-plein" if is_pile else "txt-demi"
-        row_cols[0].markdown(f"<div class='txt-base {t_class}'>{q}</div>", unsafe_allow_html=True)
+        html += f'<tr><td class="col-time {row_class} {txt_class}">{q}</td>'
         
-        # Colonnes Jours
-        for i, d in enumerate(week_days):
-            with row_cols[i+1]:
-                resas = df[(df['Date_DT'].dt.date == d.date()) & (df['Horaire'].apply(lambda x: est_dans_quart_heure(x, q)))]
-                
-                l_class = "line-plein" if is_pile else "line-demi"
-                
-                # On superpose la ligne et le contenu
-                html = f"<div class='line-container'><div class='line-style {l_class}'></div>"
-                
-                if not resas.empty:
-                    html += '<div class="slot-container" style="position:relative; z-index:10;">'
-                    for _, r in resas.iterrows():
-                        color = SIMU_CONFIG.get(str(r['Simu']).strip(), "#EEEEEE")
-                        html += f'<div class="calendar-cell" style="background-color: {color};">{r["Equipage"]}</div>'
-                    html += '</div>'
-                
-                st.markdown(html + "</div>", unsafe_allow_html=True)
+        for d in week_days:
+            resas = df[(df['Date_DT'].dt.date == d.date()) & (df['Horaire'].apply(lambda x: est_dans_quart_heure(x, q)))]
+            html += f'<td class="{row_class}">'
+            
+            if not resas.empty:
+                html += '<div class="res-flex">'
+                for _, r in resas.iterrows():
+                    color = SIMU_CONFIG.get(str(r['Simu']).strip().upper(), "#EEEEEE")
+                    html += f'<div class="res-item" style="background-color:{color}" title="{r["Simu"]}">{r["Equipage"]}</div>'
+                html += '</div>'
+            
+            html += '</td>'
+        html += '</tr>'
+    
+    html += '</tbody></table>'
+    st.markdown(html, unsafe_allow_html=True)
 
-# --- STATS ET ADMIN (Restent identiques pour la stabilité) ---
-elif menu == "📊 Statistiques":
-    st.title("📊 Statistiques")
-    if not df.empty:
-        st.bar_chart(df['Simu'].value_counts())
-        st.dataframe(df.drop(columns=['Date_DT']), use_container_width=True)
-
+# --- ADMIN ---
 elif menu == "🔐 Administration":
     st.title("⚙️ Administration")
     pwd = st.sidebar.text_input("Mot de passe", type="password")
     if pwd == ADMIN_PASSWORD:
-        tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
-        with tab1:
-            with st.form("add"):
-                d = st.date_input("Date", format="DD/MM/YYYY")
-                eq = st.text_input("Équipage")
-                hr = st.text_input("Horaire")
-                sm = st.selectbox("Simu", list(SIMU_CONFIG.keys()))
-                if st.form_submit_button("Ajouter"):
-                    requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d.strftime("%d/%m/%Y"),"equipage":eq,"horaire":hr,"simu":sm}))
-                    st.rerun()
-    else: st.info("Entrez le mot de passe.")
+        with st.form("add"):
+            d = st.date_input("Date", format="DD/MM/YYYY")
+            eq = st.text_input("Équipage")
+            hr = st.text_input("Horaire (ex: 10:00 - 12:00)")
+            sm = st.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
+            if st.form_submit_button("Ajouter"):
+                requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d.strftime("%d/%m/%Y"),"equipage":eq,"horaire":hr,"simu":sm}))
+                st.success("Ajouté !"); time.sleep(1); st.rerun()
