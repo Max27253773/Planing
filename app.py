@@ -96,12 +96,13 @@ simu_sel = st.sidebar.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
 current_color = SIMU_CONFIG.get(simu_sel, "#000000")
 text_on_color = "#000000" if simu_sel in ["PHOBOS", "NEKKAR"] else "#FFFFFF"
 
-# --- CSS FINAL ---
+# --- CSS FINAL VERROUILLÉ ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #FFFFFF !important; }}
     [data-testid="stSidebar"] {{ background-color: #E2E8F0 !important; border-right: 2px solid #000000 !important; }}
-    h1 {{ border-bottom: none !important; color: #000000 !important; }}
+    h1 {{ border-bottom: none !important; color: #000000 !important; font-weight: 900 !important; }}
+    [data-testid="stHeader"] {{ background: rgba(0,0,0,0) !important; }}
     .grid-line-hour {{ border-bottom: 2px solid #333333 !important; height: 45px; }}
     .grid-line-min {{ border-bottom: 1px dashed #777777 !important; height: 45px; }}
     div.stDownloadButton > button {{ background-color: #000000 !important; color: #FFFFFF !important; border: 2px solid #000000 !important; width: 100%; font-weight: bold !important; padding: 0.6rem !important; border-radius: 4px !important; }}
@@ -110,7 +111,7 @@ st.markdown(f"""
     .calendar-cell-unique {{ position: absolute; top: 2px; left: 2px; right: 2px; z-index: 100; padding: 4px; border-radius: 2px; font-size: 13px; border: 2px solid #000000; color: {text_on_color} !important; text-align: center; font-weight: 900; display: flex; align-items: center; justify-content: center; box-shadow: 2px 2px 0px rgba(0,0,0,1); }}
     .time-col-full {{ color: #000000 !important; font-weight: 900; border-right: 5px solid {current_color}; }}
     .time-col-half {{ color: #222222 !important; font-weight: 700; border-right: 2px solid #000000; }}
-    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stDateInput input {{ border: 2px solid #000000 !important; background-color: white !important; color: black !important; }}
+    .stTextInput input, .stSelectbox div[data-baseweb="select"], .stDateInput input {{ border: 2px solid #000000 !important; background-color: white !important; color: black !important; font-weight: bold !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -122,12 +123,15 @@ st.sidebar.divider()
 img_bin = generer_image_planning(df_view, week_days, simu_sel)
 st.sidebar.download_button(label="📸 Télécharger Planning", data=img_bin, file_name=f"Planning_{simu_sel}.png", mime="image/png")
 
+# --- NAVIGATION ---
+
 if menu == "📅 Planning":
     st.markdown(f"<h1>⚓ Planning : {simu_sel}</h1>", unsafe_allow_html=True)
     cols = st.columns([0.6] + [1]*5)
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
     for i, d in enumerate(week_days):
         cols[i+1].markdown(f"<div style='text-align:center; background-color:{current_color}; color:{text_on_color}; padding:10px; font-weight:900; border:2px solid black; box-shadow: 3px 3px 0px black;'>{jours_fr[i]}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
+
     for q in QUARTS_HEURES:
         if q == "20:30": continue
         row_cols = st.columns([0.6] + [1]*5)
@@ -147,14 +151,34 @@ if menu == "📅 Planning":
                 st.markdown(f"<div class='slot-wrapper'><div class='{'grid-line-hour' if is_pile else 'grid-line-min'}'></div>{html_bloc}</div>", unsafe_allow_html=True)
 
 elif menu == "📊 Statistiques":
-    st.markdown("<h1>📊 Statistiques d'utilisation</h1>", unsafe_allow_html=True)
+    st.markdown("<h1>📊 Bilan Horaire d'Activité</h1>", unsafe_allow_html=True)
     if not df.empty:
-        st.bar_chart(df['Simu'].value_counts())
+        def calcul_duree(horaire_str):
+            h_deb, h_fin = extraire_heures(horaire_str)
+            return (h_fin - h_deb) if h_deb is not None else 0
+        df['Duree_H'] = df['Horaire'].apply(calcul_duree)
+        df['Mois'] = df['Date_DT'].dt.strftime('%m - %B')
+        df['Annee'] = df['Date_DT'].dt.year
+
+        st.subheader("📁 Volume horaire par équipage (Mensuel)")
+        mois_dispo = sorted(df['Mois'].unique())
+        mois_sel = st.selectbox("Choisir un mois", mois_dispo, index=len(mois_dispo)-1)
+        df_mois = df[df['Mois'] == mois_sel]
+        stats_equipage = df_mois.groupby('Equipage')['Duree_H'].sum().reset_index()
+        st.dataframe(stats_equipage.sort_values(by='Duree_H', ascending=False), use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.subheader("🖥️ Utilisation des simulateurs (Annuel)")
+        an_dispo = sorted(df['Annee'].unique())
+        an_sel = st.selectbox("Choisir l'année", an_dispo, index=len(an_dispo)-1)
+        stats_simu = df[df['Annee'] == an_sel].groupby('Simu')['Duree_H'].sum().sort_values(ascending=False)
+        st.bar_chart(stats_simu)
+        st.table(stats_simu.rename("Heures Totales"))
+    else:
+        st.warning("Aucune donnée disponible.")
 
 elif menu == "🔐 Administration":
     st.markdown("<h1>⚙️ Gestion des Réservations</h1>", unsafe_allow_html=True)
-    
-    # --- BARRE LATÉRALE POUR LE MOT DE PASSE ---
     st.sidebar.subheader("🔒 Accès Restreint")
     pwd = st.sidebar.text_input("Saisir le mot de passe", type="password")
     
@@ -165,41 +189,28 @@ elif menu == "🔐 Administration":
             return f"{r['Date']} | {r['Horaire']} | {r['Simu']} | {r['Equipage']}"
         with tab1:
             with st.form("a", clear_on_submit=True):
-                d = st.date_input("Date")
-                eq = st.text_input("Equipage")
-                hr = st.text_input("Horaire")
+                d, eq, hr = st.date_input("Date"), st.text_input("Equipage"), st.text_input("Horaire")
                 sm = st.selectbox("Simu", list(SIMU_CONFIG.keys()))
                 if st.form_submit_button("Ajouter"):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d.strftime("%d/%m/%Y"),"equipage":eq,"horaire":hr,"simu":sm}))
-                    st.success("✅ Ajouté !")
-                    time.sleep(1)
-                    st.rerun()
+                    st.success("✅ Ajouté !"), time.sleep(1), st.rerun()
         with tab2:
             if not df.empty:
                 idx = st.selectbox("Sélectionner la ligne", df.index, format_func=format_resa)
                 with st.form("e"):
-                    ed = st.date_input("Date", value=df.loc[idx,'Date_DT'])
-                    ee = st.text_input("Equipage", df.loc[idx,'Equipage'])
-                    eh = st.text_input("Horaire", df.loc[idx,'Horaire'])
+                    ed, ee, eh = st.date_input("Date", value=df.loc[idx,'Date_DT']), st.text_input("Equipage", df.loc[idx,'Equipage']), st.text_input("Horaire", df.loc[idx,'Horaire'])
                     current_s = str(df.loc[idx,'Simu']).strip().upper()
                     s_list = list(SIMU_CONFIG.keys())
-                    def_idx = s_list.index(current_s) if current_s in s_list else 0
-                    es = st.selectbox("Simu", s_list, index=def_idx)
+                    es = st.selectbox("Simu", s_list, index=s_list.index(current_s) if current_s in s_list else 0)
                     if st.form_submit_button("Mettre à jour"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"update","row":int(idx)+2,"date":ed.strftime("%d/%m/%Y"),"equipage":ee,"horaire":eh,"simu":es}))
-                        st.success("📝 Modifié !")
-                        time.sleep(1)
-                        st.rerun()
+                        st.success("📝 Modifié !"), time.sleep(1), st.rerun()
         with tab3:
             if not df.empty:
                 t = st.selectbox("Ligne à supprimer", df.index, format_func=format_resa)
-                confirm = st.checkbox("Je confirme la suppression")
-                if st.button("❌ Supprimer définitivement", disabled=not confirm):
+                if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer la suppression")):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(t)+2}))
-                    st.success("🗑️ Supprimé !")
-                    time.sleep(1)
-                    st.rerun()
+                    st.success("🗑️ Supprimé !"), time.sleep(1), st.rerun()
     else:
-        # --- MESSAGE D'ALERTE VISIBLE ---
-        st.error("🔑 Accès verrouillé. Veuillez entrer le mot de passe dans la barre latérale pour accéder aux outils de gestion.")
-        st.info("Regardez dans le menu à gauche sous '🔒 Accès Restreint'.")
+        st.error("🔑 Accès verrouillé. Veuillez entrer le mot de passe dans la barre latérale.")
+        st.info("Menu à gauche : '🔒 Accès Restreint'.")
