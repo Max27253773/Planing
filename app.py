@@ -8,15 +8,22 @@ from datetime import datetime, timedelta
 
 # --- CONFIGURATION ---
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/export?format=csv&gid=0"
-# URL mise à jour avec la tienne
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhetuY5QpJEvl-Wv1BMGej5FeW6S3-WDcbS1DwcwUVT-Yt3e8th1XG9pPCcbrwPu5ITw/exec"
 ADMIN_PASSWORD = "1234" 
 
+# Mise à jour de la liste des simulateurs avec des couleurs distinctes
 SIMU_CONFIG = {
-    "Passerelle 1": "#B3E5FC", 
-    "Machine": "#C8E6C9",      
-    "Radar": "#FFF9C4",        
-    "Manœuvre": "#F8BBD0"      
+    "JUPITER": "#B3E5FC", 
+    "MINERVE": "#C8E6C9",      
+    "JUNON": "#FFF9C4",        
+    "BACCHUS": "#F8BBD0",
+    "MARS": "#E1BEE7",
+    "SATURNE": "#FFCCBC",
+    "CRONOS": "#D1C4E9",
+    "NEKKAR": "#CFD8DC",
+    "PHOBOS": "#F0F4C3",
+    "PERSEE": "#B2DFDB",
+    "SAGITTAIRE": "#FFE0B2"
 }
 
 QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "15", "30", "45"]]
@@ -128,7 +135,7 @@ elif menu == "🔐 Administration":
             with st.form("form_add", clear_on_submit=True):
                 d = st.date_input("Date")
                 eq = st.text_input("Équipage")
-                hr = st.text_input("Horaire (08h00 - 12h00)")
+                hr = st.text_input("Horaire")
                 sm = st.selectbox("Simu", list(SIMU_CONFIG.keys()))
                 if st.form_submit_button("Ajouter"):
                     requests.post(SCRIPT_URL, data=json.dumps({"action": "add", "date": d.strftime("%d/%m/%Y"), "equipage": eq, "horaire": hr, "simu": sm}))
@@ -147,7 +154,6 @@ elif menu == "🔐 Administration":
                     eh = st.text_input("Horaire", df.loc[idx_mod, 'Horaire'])
                     es = st.selectbox("Simu", list_simus, index=default_idx)
                     if st.form_submit_button("Mettre à jour"):
-                        # row = index + 2 (header + base 0)
                         requests.post(SCRIPT_URL, data=json.dumps({"action": "update", "row": int(idx_mod)+2, "date": ed.strftime("%d/%m/%Y"), "equipage": ee, "horaire": eh, "simu": es}))
                         st.success("Mis à jour !"); time.sleep(1); st.rerun()
 
@@ -155,7 +161,6 @@ elif menu == "🔐 Administration":
             if not df.empty:
                 target = st.selectbox("Ligne à supprimer", df.index, format_func=lambda x: f"{df.loc[x, 'Date']} - {df.loc[x, 'Equipage']}")
                 
-                # Double vérification simplifiée
                 if st.button("❌ Supprimer la sélection"):
                     st.session_state['confirm_del'] = True
                 
@@ -168,4 +173,4 @@ elif menu == "🔐 Administration":
                         time.sleep(1)
                         st.rerun()
     else:
-        st.error("Entrez le mot de passe 1234 pour continuer.")
+        st.error("Accès restreint.")
