@@ -6,7 +6,7 @@ import re
 import json
 from datetime import datetime, timedelta
 
-# --- CONFIGURATION FIXE ---
+# --- CONFIGURATION ---
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/export?format=csv&gid=0"
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhetuY5QpJEvl-Wv1BMGej5FeW6S3-WDcbS1DwcwUVT-Yt3e8th1XG9pPCcbrwPu5ITw/exec"
 ADMIN_PASSWORD = "1234" 
@@ -22,7 +22,7 @@ QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "15", "30"
 
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
 
-# --- STYLE CSS (Validé) ---
+# --- STYLE CSS ---
 st.markdown("""
     <style>
     .slot-container { display: flex !important; flex-direction: row !important; gap: 2px !important; width: 100% !important; height: 100%; }
@@ -39,7 +39,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIQUE ---
+# --- FONCTION DE PARSING ---
 def est_dans_quart_heure(horaire_str, quart_str):
     try:
         nums = re.findall(r'(\d+)', str(horaire_str))
@@ -63,10 +63,10 @@ def load_data():
 
 df = load_data()
 
-# --- MENU ---
+# --- NAVIGATION ---
 menu = st.sidebar.radio("MENU", ["📅 Planning Hebdo", "📊 Statistiques", "🔐 Administration"])
 
-# --- 1. PLANNING (Focus actuel) ---
+# --- 1. PLANNING ---
 if menu == "📅 Planning Hebdo":
     st.title("⚓ Planning des Simulateurs")
     c1, c2, _ = st.columns([1, 1, 4])
@@ -95,12 +95,12 @@ if menu == "📅 Planning Hebdo":
                         nums = re.findall(r'(\d+)', str(r['Horaire']))
                         h_start = f"{int(nums[0]):02d}:{int(nums[1] if len(nums)>1 else 0):02d}"
                         label = f"{r['Equipage']}" if h_start == q else ""
-                        html += f'<div class="calendar-cell" style="background-color: {color};">{label}</div>'
+                        html += f'<div class="calendar-cell" style="background-color: {color};" title="{r["Simu"]}">{label}</div>'
                     st.markdown(html + '</div>', unsafe_allow_html=True)
                 else:
                     st.markdown(f"<div class='{'grid-line-hour' if is_pile else 'grid-line-min'}'></div>", unsafe_allow_html=True)
 
-# --- 2. STATISTIQUES (Faisant office de base) ---
+# --- 2. STATISTIQUES ---
 elif menu == "📊 Statistiques":
     st.title("📊 Statistiques d'Utilisation")
     if not df.empty:
@@ -115,33 +115,51 @@ elif menu == "📊 Statistiques":
         st.subheader("📋 Liste des réservations")
         st.dataframe(df.drop(columns=['Date_DT']), use_container_width=True)
 
-# --- 3. ADMINISTRATION (Figée avec MDP 1234) ---
+# --- 3. ADMINISTRATION ---
 elif menu == "🔐 Administration":
     st.title("⚙️ Administration")
     pwd = st.sidebar.text_input("Mot de passe", type="password")
+    
     if pwd == ADMIN_PASSWORD:
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
+        
         with tab1:
-            with st.form("add"):
-                d, eq, hr = st.date_input("Date"), st.text_input("Équipage"), st.text_input("Horaire")
+            with st.form("form_add"):
+                d = st.date_input("Date")
+                eq = st.text_input("Équipage")
+                hr = st.text_input("Horaire")
                 sm = st.selectbox("Simu", list(SIMU_CONFIG.keys()))
                 if st.form_submit_button("Ajouter"):
                     requests.post(SCRIPT_URL, data=json.dumps({"action": "add", "date": d.strftime("%d/%m/%Y"), "equipage": eq, "horaire": hr, "simu": sm}))
                     st.success("Ajouté !"); time.sleep(1); st.rerun()
+
         with tab2:
             if not df.empty:
                 idx = st.selectbox("Sélectionner pour modifier", df.index, format_func=lambda x: f"{df.loc[x, 'Date']} - {df.loc[x, 'Equipage']}")
-                with st.form("edit"):
-                    ed, ee, eh = st.date_input("Date", df.loc[idx, 'Date_DT']), st.text_input("Équipage", df.loc[idx, 'Equipage']), st.text_input("Horaire", df.loc[idx, 'Horaire'])
-                    es = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(df.loc[idx, 'Simu']))
+                val_simu = str(df.loc[idx, 'Simu']).strip()
+                list_simus = list(SIMU_CONFIG.keys())
+                default_idx = list_simus.index(val_simu) if val_simu in list_simus else 0
+
+                with st.form("form_edit"):
+                    ed = st.date_input("Date", df.loc[idx, 'Date_DT'])
+                    ee = st.text_input("Équipage", df.loc[idx, 'Equipage'])
+                    eh = st.text_input("Horaire", df.loc[idx, 'Horaire'])
+                    es = st.selectbox("Simu", list_simus, index=default_idx)
                     if st.form_submit_button("Mettre à jour"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action": "update", "row": int(idx)+2, "date": ed.strftime("%d/%m/%Y"), "equipage": ee, "horaire": eh, "simu": es}))
                         st.success("Mis à jour !"); time.sleep(1); st.rerun()
+
         with tab3:
             if not df.empty:
                 target = st.selectbox("Supprimer", df.index, format_func=lambda x: f"{df.loc[x, 'Date']} - {df.loc[x, 'Equipage']}")
-                if st.button("Supprimer définitivement"):
-                    requests.post(SCRIPT_URL, data=json.dumps({"action": "delete", "row": int(target)+2}))
-                    st.warning("Supprimé !"); time.sleep(1); st.rerun()
+                
+                # --- SYSTÈME DE CONFIRMATION ---
+                if st.button("❌ Supprimer définitivement"):
+                    st.warning(f"Êtes-vous sûr de vouloir supprimer la réservation de {df.loc[target, 'Equipage']} ?")
+                    if st.button("✅ Oui, confirmer la suppression"):
+                        requests.post(SCRIPT_URL, data=json.dumps({"action": "delete", "row": int(target)+2}))
+                        st.success("Supprimé !")
+                        time.sleep(1)
+                        st.rerun()
     else:
         st.error("Accès restreint.")
