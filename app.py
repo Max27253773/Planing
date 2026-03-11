@@ -18,12 +18,12 @@ SIMU_CONFIG = {
     "PERSEE": "#B2DFDB", "SAGITTAIRE": "#FFE0B2"
 }
 
-# MISE À JOUR : Précision à 30 minutes
+# Précision à 30 minutes
 QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
 
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
 
-# --- STYLE CSS (Ajusté pour 30 min) ---
+# --- STYLE CSS (Optimisé pour la différenciation Heure/Demi-heure) ---
 st.markdown("""
     <style>
     .slot-container { display: flex !important; flex-direction: row !important; gap: 2px !important; width: 100% !important; height: 100%; }
@@ -33,9 +33,14 @@ st.markdown("""
         color: #000 !important; text-align: center !important; font-weight: bold; 
         min-height: 40px; display: flex; align-items: center; justify-content: center;
     }
-    .time-col { font-size: 13px; font-weight: bold; color: #003366; text-align: right; padding-right: 15px; border-right: 3px solid #003366; }
-    .grid-line-hour { border-bottom: 2px solid #ccc; height: 45px; }
-    .grid-line-min { border-bottom: 1px dashed #ddd; height: 45px; }
+    /* Style différencié pour la colonne de temps */
+    .time-col-full { font-size: 14px; font-weight: 800; color: #003366; text-align: right; padding-right: 15px; border-right: 4px solid #003366; background-color: #f0f2f6; }
+    .time-col-half { font-size: 12px; font-weight: 400; color: #666; text-align: right; padding-right: 15px; border-right: 4px solid #99abc0; }
+    
+    /* Style différencié pour les lignes de grille */
+    .grid-line-hour { border-bottom: 2px solid #b0bec5; height: 45px; background-color: rgba(0, 51, 102, 0.02); }
+    .grid-line-min { border-bottom: 1px dashed #cfd8dc; height: 45px; }
+    
     .day-header { text-align: center; background-color: #003366; color: white; padding: 10px; border-radius: 4px; font-weight: bold; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
@@ -50,7 +55,6 @@ def est_dans_quart_heure(horaire_str, quart_str):
             debut, fin = float(nums[0]), float(nums[1])
         else: return False
         h_q, m_q = map(int, quart_str.split(':'))
-        # On vérifie si le début du créneau de 30min tombe dans la plage réservée
         return debut <= (h_q + m_q/60) < fin
     except: return False
 
@@ -85,7 +89,11 @@ if menu == "📅 Planning Hebdo":
     for q in QUARTS_HEURES:
         row_cols = st.columns([0.6] + [1]*5)
         is_pile = q.endswith(":00")
-        row_cols[0].markdown(f"<div class='time-col'>{q}</div>", unsafe_allow_html=True)
+        
+        # Application du style différencié sur la colonne heure
+        time_class = "time-col-full" if is_pile else "time-col-half"
+        row_cols[0].markdown(f"<div class='{time_class}'>{q}</div>", unsafe_allow_html=True)
+        
         for i, d in enumerate(week_days):
             with row_cols[i+1]:
                 resas = df[(df['Date_DT'].dt.date == d.date()) & (df['Horaire'].apply(lambda x: est_dans_quart_heure(x, q)))]
@@ -93,12 +101,13 @@ if menu == "📅 Planning Hebdo":
                     html = '<div class="slot-container">'
                     for _, r in resas.iterrows():
                         color = SIMU_CONFIG.get(str(r['Simu']).strip(), "#EEEEEE")
-                        # Affichage du nom seulement au début ou si c'est le seul créneau
                         label = f"{r['Equipage']}"
                         html += f'<div class="calendar-cell" style="background-color: {color};" title="{r["Simu"]}">{label}</div>'
                     st.markdown(html + '</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown(f"<div class='{'grid-line-hour' if is_pile else 'grid-line-min'}'></div>", unsafe_allow_html=True)
+                    # Application du style différencié sur la ligne vide
+                    grid_class = "grid-line-hour" if is_pile else "grid-line-min"
+                    st.markdown(f"<div class='{grid_class}'></div>", unsafe_allow_html=True)
 
 # --- 2. STATISTIQUES (VERROUILLÉES) ---
 elif menu == "📊 Statistiques":
