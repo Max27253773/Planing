@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 # --- CONFIGURATION ---
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/export?format=csv&gid=0"
+# URL mise à jour avec la tienne
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhetuY5QpJEvl-Wv1BMGej5FeW6S3-WDcbS1DwcwUVT-Yt3e8th1XG9pPCcbrwPu5ITw/exec"
 ADMIN_PASSWORD = "1234" 
 
@@ -124,10 +125,10 @@ elif menu == "🔐 Administration":
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
         
         with tab1:
-            with st.form("form_add"):
+            with st.form("form_add", clear_on_submit=True):
                 d = st.date_input("Date")
                 eq = st.text_input("Équipage")
-                hr = st.text_input("Horaire")
+                hr = st.text_input("Horaire (08h00 - 12h00)")
                 sm = st.selectbox("Simu", list(SIMU_CONFIG.keys()))
                 if st.form_submit_button("Ajouter"):
                     requests.post(SCRIPT_URL, data=json.dumps({"action": "add", "date": d.strftime("%d/%m/%Y"), "equipage": eq, "horaire": hr, "simu": sm}))
@@ -135,31 +136,36 @@ elif menu == "🔐 Administration":
 
         with tab2:
             if not df.empty:
-                idx = st.selectbox("Sélectionner pour modifier", df.index, format_func=lambda x: f"{df.loc[x, 'Date']} - {df.loc[x, 'Equipage']}")
-                val_simu = str(df.loc[idx, 'Simu']).strip()
+                idx_mod = st.selectbox("Sélectionner pour modifier", df.index, format_func=lambda x: f"{df.loc[x, 'Date']} - {df.loc[x, 'Equipage']}")
+                val_simu = str(df.loc[idx_mod, 'Simu']).strip()
                 list_simus = list(SIMU_CONFIG.keys())
                 default_idx = list_simus.index(val_simu) if val_simu in list_simus else 0
 
                 with st.form("form_edit"):
-                    ed = st.date_input("Date", df.loc[idx, 'Date_DT'])
-                    ee = st.text_input("Équipage", df.loc[idx, 'Equipage'])
-                    eh = st.text_input("Horaire", df.loc[idx, 'Horaire'])
+                    ed = st.date_input("Date", df.loc[idx_mod, 'Date_DT'])
+                    ee = st.text_input("Équipage", df.loc[idx_mod, 'Equipage'])
+                    eh = st.text_input("Horaire", df.loc[idx_mod, 'Horaire'])
                     es = st.selectbox("Simu", list_simus, index=default_idx)
                     if st.form_submit_button("Mettre à jour"):
-                        requests.post(SCRIPT_URL, data=json.dumps({"action": "update", "row": int(idx)+2, "date": ed.strftime("%d/%m/%Y"), "equipage": ee, "horaire": eh, "simu": es}))
+                        # row = index + 2 (header + base 0)
+                        requests.post(SCRIPT_URL, data=json.dumps({"action": "update", "row": int(idx_mod)+2, "date": ed.strftime("%d/%m/%Y"), "equipage": ee, "horaire": eh, "simu": es}))
                         st.success("Mis à jour !"); time.sleep(1); st.rerun()
 
         with tab3:
             if not df.empty:
-                target = st.selectbox("Supprimer", df.index, format_func=lambda x: f"{df.loc[x, 'Date']} - {df.loc[x, 'Equipage']}")
+                target = st.selectbox("Ligne à supprimer", df.index, format_func=lambda x: f"{df.loc[x, 'Date']} - {df.loc[x, 'Equipage']}")
                 
-                # --- SYSTÈME DE CONFIRMATION ---
-                if st.button("❌ Supprimer définitivement"):
-                    st.warning(f"Êtes-vous sûr de vouloir supprimer la réservation de {df.loc[target, 'Equipage']} ?")
-                    if st.button("✅ Oui, confirmer la suppression"):
+                # Double vérification simplifiée
+                if st.button("❌ Supprimer la sélection"):
+                    st.session_state['confirm_del'] = True
+                
+                if st.session_state.get('confirm_del'):
+                    st.warning(f"Confirmer la suppression de : {df.loc[target, 'Equipage']} ?")
+                    if st.button("✅ CONFIRMER DÉFINITIVEMENT"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action": "delete", "row": int(target)+2}))
+                        st.session_state['confirm_del'] = False
                         st.success("Supprimé !")
                         time.sleep(1)
                         st.rerun()
     else:
-        st.error("Accès restreint.")
+        st.error("Entrez le mot de passe 1234 pour continuer.")
