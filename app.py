@@ -5,6 +5,7 @@ import time
 import re
 import json
 from datetime import datetime, timedelta
+import streamlit.components.v1 as components
 
 # --- CONFIGURATION (VERROUILLÉE) ---
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/export?format=csv&gid=0"
@@ -18,9 +19,42 @@ SIMU_CONFIG = {
     "PERSEE": "#B2DFDB", "SAGITTAIRE": "#FFE0B2"
 }
 
+# Plage horaire : de 06:00 à 20:00
 QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
 
 st.set_page_config(page_title="⚓ Planning Naval", layout="wide")
+
+# --- FONCTION DE CAPTURE D'ÉCRAN (JS) ---
+def bouton_capture():
+    components.html("""
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+        <script>
+        function doCapture() {
+            const element = window.parent.document.querySelector('section.main');
+            html2canvas(element, {
+                backgroundColor: "#FFFFFF",
+                scale: 2 // Haute définition
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'planning_export.png';
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+            });
+        }
+        </script>
+        <button onclick="doCapture()" style="
+            background-color: #003366; 
+            color: white; 
+            border: none; 
+            padding: 12px; 
+            border-radius: 8px; 
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            margin-bottom: 20px;">
+            📸 Générer l'image du planning
+        </button>
+    """, height=70)
 
 # --- STYLE CSS ---
 st.markdown("""
@@ -43,7 +77,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIQUE ---
+# --- LOGIQUE INTERNE ---
 def extraire_heures(horaire_str):
     try:
         nums = re.findall(r'(\d+)', str(horaire_str))
@@ -65,27 +99,36 @@ def load_data():
 
 df = load_data()
 
-# --- NAVIGATION ---
+# --- NAVIGATION & FILTRES SIDEBAR ---
 menu = st.sidebar.radio("MENU", ["📅 Planning Hebdomadaire", "📊 Statistiques", "🔐 Administration"])
 
+st.sidebar.divider()
+st.sidebar.subheader("Sélection")
+annee_sel = st.sidebar.selectbox("Année", [2025, 2026, 2027], index=1)
+semaine_sel = st.sidebar.selectbox("Semaine", range(1, 54), index=datetime.now().isocalendar()[1]-1)
+simu_sel = st.sidebar.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
+
+st.sidebar.divider()
+st.sidebar.write("💾 **Exporter**")
+bouton_capture()
+
+# Calcul des jours de la semaine
+monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).weekday())) + timedelta(weeks=semaine_sel-1)
+week_days = [monday + timedelta(days=i) for i in range(5)]
+
+# --- 1. PLANNING ---
 if menu == "📅 Planning Hebdomadaire":
-    st.title("⚓ Planning par Simulateur")
+    st.title(f"⚓ Planning : {simu_sel}")
     
-    # --- FILTRES ---
-    c1, c2, c3, _ = st.columns([1, 1, 1.5, 3])
-    with c1: annee_sel = st.selectbox("Année", [2025, 2026, 2027], index=1)
-    with c2: semaine_sel = st.selectbox("Semaine", range(1, 54), index=datetime.now().isocalendar()[1]-1)
-    with c3: simu_sel = st.selectbox("Simulateur à afficher", list(SIMU_CONFIG.keys()))
-
-    monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).weekday())) + timedelta(weeks=semaine_sel-1)
-    week_days = [monday + timedelta(days=i) for i in range(5)]
-
     cols = st.columns([0.6] + [1]*5)
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
     for i, d in enumerate(week_days):
         cols[i+1].markdown(f"<div class='day-header'>{jours_fr[i]}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
 
     color_active = SIMU_CONFIG.get(simu_sel, "#EEEEEE")
+    
+    # Filtrage des données pour le simulateur choisi
+    df_simu = df[df['Simu'].str.strip().str.upper() == simu_sel.upper()]
 
     for q in QUARTS_HEURES:
         if q == "20:30": continue
@@ -93,19 +136,14 @@ if menu == "📅 Planning Hebdomadaire":
         is_pile = q.endswith(":00")
         h_actuelle = int(q.split(':')[0]) + int(q.split(':')[1])/60
         
-        # CORRECTION DE LA SYNTAXE ICI
         time_class = "time-col-full" if is_pile else "time-col-half"
         row_cols[0].markdown(f"<div class='{time_class}'>{q}</div>", unsafe_allow_html=True)
         
         for i, d in enumerate(week_days):
             with row_cols[i+1]:
-                resas_filtrees = df[
-                    (df['Date_DT'].dt.date == d.date()) & 
-                    (df['Simu'].str.strip().str.upper() == simu_sel.upper())
-                ]
-                
+                resas_jour = df_simu[df_simu['Date_DT'].dt.date == d.date()]
                 html_bloc = ""
-                for _, r in resas_filtrees.iterrows():
+                for _, r in resas_jour.iterrows():
                     h_deb, h_fin = extraire_heures(r['Horaire'])
                     if h_deb == h_actuelle:
                         hauteur_px = int((h_fin - h_deb) * 2 * 45) - 4 
@@ -114,12 +152,14 @@ if menu == "📅 Planning Hebdomadaire":
                 grid_class = "grid-line-hour" if is_pile else "grid-line-min"
                 st.markdown(f"<div class='slot-wrapper'><div class='{grid_class}'></div>{html_bloc}</div>", unsafe_allow_html=True)
 
+# --- 2. STATISTIQUES ---
 elif menu == "📊 Statistiques":
     st.title("📊 Statistiques")
     if not df.empty:
         st.bar_chart(df['Simu'].value_counts())
         st.dataframe(df.drop(columns=['Date_DT']), use_container_width=True)
 
+# --- 3. ADMINISTRATION ---
 elif menu == "🔐 Administration":
     st.title("⚙️ Gestion")
     pwd = st.sidebar.text_input("Mot de passe", type="password")
@@ -138,7 +178,7 @@ elif menu == "🔐 Administration":
                 sm = st.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
                 if st.form_submit_button("VALIDER L'AJOUT"):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d.strftime("%d/%m/%Y"),"equipage":eq,"horaire":hr,"simu":sm}))
-                    st.success("Ajouté !"); time.sleep(1); st.rerun()
+                    st.success("Réservation enregistrée !"); time.sleep(1); st.rerun()
         
         with tab2:
             if not df.empty:
@@ -150,14 +190,15 @@ elif menu == "🔐 Administration":
                     es = st.selectbox("Simulateur", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(str(df.loc[idx,'Simu']).strip()) if str(df.loc[idx,'Simu']).strip() in SIMU_CONFIG else 0)
                     if st.form_submit_button("METTRE À JOUR"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"update","row":int(idx)+2,"date":ed.strftime("%d/%m/%Y"),"equipage":ee,"horaire":eh,"simu":es}))
-                        st.success("Mis à jour !"); time.sleep(1); st.rerun()
+                        st.success("Mise à jour réussie !"); time.sleep(1); st.rerun()
         
         with tab3:
             if not df.empty:
                 target = st.selectbox("Choisir la réservation à supprimer", df.index, format_func=format_resa)
-                confirmer = st.checkbox("Cochez cette case pour confirmer la suppression")
-                if st.button("❌ Supprimer définitivement", disabled=not confirmer):
+                # SÉCURITÉ : Case à cocher obligatoire
+                confirmer = st.checkbox("Je confirme vouloir supprimer définitivement cette ligne")
+                if st.button("❌ Supprimer", disabled=not confirmer):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(target)+2}))
                     st.success("Supprimé !"); time.sleep(1); st.rerun()
     else: 
-        st.info("Entrez le mot de passe.")
+        st.info("Veuillez entrer le mot de passe.")
