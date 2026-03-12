@@ -284,7 +284,7 @@ elif menu == "🔐 Administration":
             with st.form("ajouter_form", clear_on_submit=True):
                 d_add = st.date_input("Date", value=datetime.now())
                 eq_add = st.text_input("Equipage")
-                hr_add = st.text_input("Horaire (ex: 08:00 - 10:00)")
+                hr_add = st.text_input("Horaire (ex: 08h00 - 10h00)")
                 sm_add = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(simu_sel))
                 if st.form_submit_button("Vérifier et Ajouter"):
                     if eq_add and hr_add:
