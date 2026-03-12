@@ -90,7 +90,7 @@ def load_data():
 
 # --- INTERFACE ---
 df = load_data()
-menu = st.sidebar.radio("MENU", ["📅 Planning", "📊 Statistiques", "🔐 Administration"])
+menu = st.sidebar.radio("MENU", ["📅 Planning","🔍 Trouver ses créneaux", "📊 Statistiques", "🔐 Administration"])
 
 st.sidebar.divider()
 
