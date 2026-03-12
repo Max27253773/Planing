@@ -8,6 +8,16 @@ import io
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
+# ==========================================
+# 1. INITIALISATION DU NETTOYEUR (TOP DU CODE)
+# ==========================================
+# Ces lignes empêchent les boutons de confirmation de rester affichés par erreur
+if 'pending_add' not in st.session_state:
+    st.session_state['pending_add'] = None
+
+if 'pending_mod' not in st.session_state:
+    st.session_state['pending_mod'] = None
+
 # --- CONFIGURATION ---
 st.set_page_config(page_title="⚓ Planning", layout="wide")
 
