@@ -90,7 +90,7 @@ def load_data():
 
 # --- INTERFACE ---
 df = load_data()
-menu = st.sidebar.radio("MENU", ["📅 Planning","🔍 Trouver ses créneaux", "📊 Statistiques", "🔐 Administration"])
+menu = st.sidebar.radio("MENU", ["📅 Planning", "🖥️ Supervision", "🔍 Trouver ses créneaux", "📊 Statistiques", "🔐 Administration"])
 
 # --- CONNEXION ADMIN GLOBALE ---
 st.sidebar.title("🔐 Accès ADMIN")
@@ -247,6 +247,72 @@ if menu == "📅 Planning":
                             html_bloc += f'<div class="calendar-cell-unique" style="top:1px; left:2px; right:2px; height:{hauteur_px}px; background-color:{current_color}; font-size:10px;">{r["Equipage"]}</div>'
                     grid_class = 'grid-line-hour' if is_pile else 'grid-line-min'
                     st.markdown(f"<div class='slot-container-week'><div class='{grid_class}'></div>{html_bloc}</div>", unsafe_allow_html=True)
+
+elif menu == "🖥️ Supervision":
+    st.markdown("<h1>🖥️ Vue d'ensemble des Simulateurs</h1>", unsafe_allow_html=True)
+    
+    # Sélecteur de jour pour la supervision
+    choix_j_sup = st.sidebar.selectbox("Jour à superviser", jours_fr_liste, index=min(maintenant.weekday(), 4) if annee_sel == maintenant.year else 0)
+    d_sup = week_days[jours_fr_liste.index(choix_j_sup)]
+    
+    st.info(f"Visualisation de tous les simulateurs pour le **{choix_j_sup} {d_sup.strftime('%d/%m/%Y')}**")
+
+    # Filtrage des données pour ce jour précis
+    df_jour = df[df['Date_DT'].dt.date == d_sup.date()]
+
+    # Création de la grille de données (Heures en lignes, Simus en colonnes)
+    # On crée une liste d'heures (toutes les 30 min)
+    heures_sup = [f"{h:02d}:{m}" for h in range(6, 20) for m in ["00", "30"]]
+    
+    # On prépare le tableau HTML
+    html_sup = """
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.8rem;">
+            <thead>
+                <tr style="background-color: #f0f2f6;">
+                    <th style="border: 1px solid #ddd; padding: 8px; position: sticky; left: 0; background: #f0f2f6; z-index: 10; color: black;">Heure</th>
+    """
+    
+    # Ajout des colonnes pour chaque simulateur
+    for s in SIMU_CONFIG.keys():
+        color = SIMU_CONFIG[s]
+        html_sup += f'<th style="border: 1px solid #ddd; padding: 8px; background-color: {color}; color: white; text-align: center; min-width: 80px;">{s}</th>'
+    
+    html_sup += "</tr></thead><tbody>"
+
+    # Remplissage des lignes
+    for h_str in heures_sup:
+        h_val = int(h_str.split(':')[0]) + int(h_str.split(':')[1])/60
+        html_sup += f'<tr><td style="border: 1px solid #ddd; padding: 4px; font-weight: bold; position: sticky; left: 0; background: white; z-index: 5; color: black;">{h_str}</td>'
+        
+        for s in SIMU_CONFIG.keys():
+            # Vérifier si une réservation existe pour ce simu à cette heure
+            occupe = False
+            nom_eq = ""
+            
+            # On cherche les résas de ce simulateur
+            resas_simu = df_jour[df_jour['Simu'].str.strip().str.upper() == s.upper()]
+            for _, r in resas_simu.iterrows():
+                h_deb, h_fin = extraire_heures(r['Horaire'])
+                if h_deb is not None and h_deb <= h_val < h_fin:
+                    occupe = True
+                    nom_eq = r['Equipage']
+                    break
+            
+            if occupe:
+                color = SIMU_CONFIG[s]
+                html_sup += f'<td style="border: 1px solid #ddd; padding: 2px; background-color: {color}44; color: black; text-align: center; font-size: 0.6rem; font-weight: bold;">{nom_eq}</td>'
+            else:
+                html_sup += '<td style="border: 1px solid #ddd; padding: 2px; background-color: white;"></td>'
+        
+        html_sup += "</tr>"
+    
+    html_sup += "</tbody></table></div>"
+    
+    st.markdown(html_sup, unsafe_allow_html=True)
+    
+    # Petite légende
+    st.caption("💡 Astuce : Sur mobile, faites glisser le tableau vers la droite pour voir tous les simulateurs.")
 
 elif menu == "🔍 Trouver ses créneaux":
     st.markdown("<h1>🔍 Rechercher par Équipage</h1>", unsafe_allow_html=True)
