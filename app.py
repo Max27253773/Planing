@@ -60,32 +60,24 @@ def extraire_heures(horaire_str):
     except: pass
     return None, None
 
-def verifier_conflit(df, date_test, horaire_test, simu_test, equipage_test, exclude_idx=None):
+def verifier_conflit(df, date_test, horaire_test, simu_test, exclude_idx=None):
+    """Vérifie si un créneau chevauche une réservation existante"""
     h_deb_new, h_fin_new = extraire_heures(horaire_test)
-    if h_deb_new is None: return "error", "Format d'heure invalide."
+    if h_deb_new is None: return False, "Format d'heure invalide."
     
     date_test_dt = pd.to_datetime(date_test)
-    equipage_test = str(equipage_test).strip().upper()
+    # Filtrer par même jour et même simulateur
+    match_df = df[(df['Date_DT'].dt.date == date_test_dt.date()) & 
+                  (df['Simu'].str.strip().str.upper() == simu_test.upper())]
     
-    # 1. VERIFICATION MACHINE (BLOCAGE TOTAL)
-    match_simu = df[(df['Date_DT'].dt.date == date_test_dt.date()) & 
-                    (df['Simu'].str.strip().str.upper() == simu_test.upper())]
-    for idx, row in match_simu.iterrows():
-        if exclude_idx is not None and idx == exclude_idx: continue
+    for idx, row in match_df.iterrows():
+        if exclude_idx is not None and idx == exclude_idx:
+            continue
         h_deb_ex, h_fin_ex = extraire_heures(row['Horaire'])
-        if h_deb_ex is not None and max(h_deb_new, h_deb_ex) < min(h_fin_new, h_fin_ex):
-            return "block", f"Le simulateur {simu_test} est déjà pris par {row['Equipage']}."
-
-    # 2. VERIFICATION EQUIPAGE (ALERTE AVEC CONFIRMATION)
-    match_eq = df[(df['Date_DT'].dt.date == date_test_dt.date()) & 
-                  (df['Equipage'].str.strip().str.upper() == equipage_test)]
-    for idx, row in match_eq.iterrows():
-        if exclude_idx is not None and idx == exclude_idx: continue
-        h_deb_ex, h_fin_ex = extraire_heures(row['Horaire'])
-        if h_deb_ex is not None and max(h_deb_new, h_deb_ex) < min(h_fin_new, h_fin_ex):
-            return "warn", f"L'équipage {equipage_test} est déjà sur {row['Simu']} à cette heure."
-
-    return "ok", ""
+        if h_deb_ex is not None:
+            if max(h_deb_new, h_deb_ex) < min(h_fin_new, h_fin_ex):
+                return True, f"Conflit avec {row['Equipage']} ({row['Horaire']})"
+    return False, ""
 
 @st.cache_data(ttl=2)
 def load_data():
@@ -214,39 +206,25 @@ if menu == "📅 Planning":
         # --- QUICK BOOKING CONDITIONNEL ---
         if is_admin:
             with st.expander("⚡ RÉSERVATION RAPIDE", expanded=False):
-              with st.form("quick_booking"):
-                c1, c2 = st.columns(2)
-                q_eq = c1.text_input("Équipage", placeholder="Nom")
-                q_hr = c2.text_input("Horaire", placeholder="08h00 - 10h00")
-            
-                # Case de confirmation (invisible par défaut, s'active si besoin)
-                force_confirm = st.checkbox("Confirmer le doublon (si équipage déjà sur un autre simu)")
-            
-                submit = st.form_submit_button("Vérifier et valider")
-    
-                if submit:
-                    if q_eq and q_hr:
-                        # On passe bien q_eq à la fonction pour vérifier les doubles
-                        status, msg = verifier_conflit(df, d, q_hr, simu_sel, q_eq)
-                    
-                        if status == "block":
-                            st.error(f"❌ {msg}")
-                    
-                        elif status == "warn" and not force_confirm:
-                            # Si doublon détecté SANS la case cochée
-                            st.warning(f"⚠️ {msg}")
-                            st.info("Veuillez cocher la case 'Confirmer le doublon' ci-dessus pour valider quand même.")
-                    
-                        else:
-                            # Cas "ok" OU (cas "warn" ET case cochée)
-                            requests.post(SCRIPT_URL, data=json.dumps({
-                                "action":"add", 
-                                "date":d.strftime("%d/%m/%Y"),
-                                "equipage":q_eq.upper(), 
-                                "horaire":q_hr, 
-                                "simu":simu_sel
-                            }))
-                            st.success("✅ Réservation enregistrée !"), time.sleep(1), st.rerun()
+                with st.form("quick_booking"):
+                    c1, c2 = st.columns(2)
+                    q_eq = c1.text_input("Équipage", placeholder="Nom")
+                    q_hr = c2.text_input("Horaire", placeholder="08h00 - 10h00")
+                    if st.form_submit_button("Vérifier et valider la réservation"):
+                        if q_eq and q_hr:
+                            # On utilise la fonction conflit que tu as déjà
+                            conf, msg = verifier_conflit(df, d, q_hr, simu_sel)
+                            if conf:
+                                st.error(msg)
+                            else:
+                                requests.post(SCRIPT_URL, data=json.dumps({
+                                    "action":"add",
+                                    "date":d.strftime("%d/%m/%Y"),
+                                    "equipage":q_eq.upper(),
+                                    "horaire":q_hr,
+                                    "simu":simu_sel
+                                }))
+                                st.success("Ajouté !"), time.sleep(1), st.rerun()
 
     else:
         # MODE SEMAINE
