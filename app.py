@@ -173,39 +173,43 @@ elif menu == "📊 Statistiques":
         st.warning("Aucune donnée.")
 
 elif menu == "🔐 Administration":
-    st.markdown("<h1>⚙️ Gestion</h1>", unsafe_allow_html=True)
-    pwd = st.sidebar.text_input("Mot de passe", type="password")
+    st.markdown("<h1>⚙️ Gestion des Réservations</h1>", unsafe_allow_html=True)
+    st.sidebar.subheader("🔒 Accès Restreint")
+    pwd = st.sidebar.text_input("Saisir le mot de passe", type="password")
     
     if pwd == ADMIN_PASSWORD:
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
         def format_resa(idx):
             r = df.loc[idx]
-            return f"{r['Date']} | {r['Simu']} | {r['Equipage']}"
+            return f"{r['Date']} | {r['Horaire']} | {r['Simu']} | {r['Equipage']}"
         
         with tab1:
             with st.form("a", clear_on_submit=True):
+                # Date dynamique sur aujourd'hui
                 d = st.date_input("Date", value=datetime.now())
                 eq = st.text_input("Equipage")
                 hr = st.text_input("Horaire (ex: 08:00 - 10:00)")
                 sm = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(simu_sel))
-                if st.form_submit_button("VALIDER L'AJOUT"):
+                if st.form_submit_button("Ajouter"):
                     if eq and hr:
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d.strftime("%d/%m/%Y"),"equipage":eq.upper(),"horaire":hr,"simu":sm}))
-                        st.success("Ajouté !"), time.sleep(1), st.rerun()
-        
+                        st.success("✅ Ajouté !"), time.sleep(1), st.rerun()
         with tab2:
             if not df.empty:
-                idx = st.selectbox("Sélectionner", df.index, format_func=format_resa)
+                idx = st.selectbox("Sélectionner la ligne", df.index, format_func=format_resa)
                 with st.form("e"):
                     ed, ee, eh = st.date_input("Date", value=df.loc[idx,'Date_DT']), st.text_input("Equipage", df.loc[idx,'Equipage']), st.text_input("Horaire", df.loc[idx,'Horaire'])
-                    es = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(df.loc[idx,'Simu'].strip().upper()))
-                    if st.form_submit_button("MODIFIER"):
+                    s_list = list(SIMU_CONFIG.keys())
+                    current_s = str(df.loc[idx,'Simu']).strip().upper()
+                    es = st.selectbox("Simu", s_list, index=s_list.index(current_s) if current_s in s_list else 0)
+                    if st.form_submit_button("Mettre à jour"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"update","row":int(idx)+2,"date":ed.strftime("%d/%m/%Y"),"equipage":ee.upper(),"horaire":eh,"simu":es}))
-                        st.success("Modifié !"), time.sleep(1), st.rerun()
-
+                        st.success("📝 Modifié !"), time.sleep(1), st.rerun()
         with tab3:
             if not df.empty:
                 t = st.selectbox("Ligne à supprimer", df.index, format_func=format_resa)
-                if st.button("CONFIRMER LA SUPPRESSION"):
+                if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer la suppression")):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(t)+2}))
-                    st.success("Supprimé !"), time.sleep(1), st.rerun()
+                    st.success("🗑️ Supprimé !"), time.sleep(1), st.rerun()
+    else:
+        st.error("🔑 Entrez le mot de passe dans la barre latérale.")
