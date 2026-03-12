@@ -116,6 +116,19 @@ st.sidebar.divider()
 st.sidebar.subheader("📱 Options d'affichage")
 mode_vue = st.sidebar.segmented_control("Format", ["Semaine", "Jour"], default="Jour")
 
+# --- COPYRIGHT ET SIGNATURE ---
+st.sidebar.divider()
+st.sidebar.markdown(
+    """
+    <div style='text-align: center; color: #666666; font-size: 0.8rem; padding: 10px;'>
+        © 2026 <b>Maxime JAMAIN</b><br>
+        Tous droits réservés<br>
+        <span style='font-size: 0.7rem;'>Version 2.0 - Planning Simulateurs</span>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+
 monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).weekday())) + timedelta(weeks=semaine_sel-1)
 week_days = [monday + timedelta(days=i) for i in range(5)]
 jours_fr_liste = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
