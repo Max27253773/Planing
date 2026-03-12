@@ -20,8 +20,8 @@ SIMU_CONFIG = {
     "PERSEE": "#558B2F", "SAGITTAIRE": "#4A148C"
 }
 
-# On s'arrête à 20:00 (le dernier créneau 20:00-20:30) pour éviter la ligne vide de 20:30
-QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 21) for m in ["00", "30"]]
+# Liste arrêtée à 20:00 pile pour supprimer la ligne 20:30
+QUARTS_HEURES = [f"{h:02d}:{m}" for h in range(6, 20) for m in ["00", "30"]] + ["20:00"]
 
 st.set_page_config(page_title="⚓ Planning", layout="wide")
 
@@ -79,10 +79,12 @@ st.markdown(f"""
     [data-testid="stSidebar"] {{ background-color: #E2E8F0 !important; border-right: 2px solid #000000 !important; }}
     h1 {{ font-size: 1.8rem !important; font-weight: 900 !important; color: #000000 !important; }}
     
-    /* Mode Jour : Cadre fixe */
+    /* Mode Jour : Cadre ajusté pour finir à 20h00 */
     .planning-frame {{
         position: relative; width: 100%; background: #FFFFFF;
-        height: 1305px; border: 1px solid #000; margin-bottom: 30px;
+        height: 1260px; /* Hauteur exacte pour 6h-20h (14h * 90px) */
+        border: 1px solid #000; margin-bottom: 30px;
+        overflow: hidden;
     }}
     .hour-row-fixed {{
         position: absolute; left: 0; right: 0; height: 45px;
@@ -122,6 +124,7 @@ if menu == "📅 Planning":
         
         html_jour = '<div class="planning-frame">'
         for i, q in enumerate(QUARTS_HEURES):
+            if i >= 29: break # Sécurité pour ne pas dépasser 20h00 (28 créneaux de 30min de 6h à 20h)
             top = i * 45
             style = "border-bottom: 2px solid #333;" if q.endswith(":00") else ""
             html_jour += f'<div class="hour-row-fixed" style="top:{top}px; {style}"><div style="width:60px; text-align:right; padding-right:8px; font-weight:900; border-right:3px solid {current_color}; background:#F0F2F6; height:100%; display:flex; align-items:center; justify-content:flex-end;">{q}</div></div>'
