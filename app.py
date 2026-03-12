@@ -413,7 +413,7 @@ elif menu == "🔐 Administration":
         ].sort_values(by=['Date_DT', 'Horaire'])
         
         with tab1:
-        with st.form("ajouter_form", clear_on_submit=True):
+           with st.form("ajouter_form", clear_on_submit=True):
             d_add = st.date_input("Date", value=datetime.now())
             eq_add = st.text_input("Equipage", placeholder="Nom")
             hr_add = st.text_input("Horaire", placeholder="08h00 - 10h00")
@@ -433,6 +433,23 @@ elif menu == "🔐 Administration":
                     else:
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d_add.strftime("%d/%m/%Y"),"equipage":eq_add.upper(),"horaire":hr_add,"simu":sm_add}))
                         st.success("✅ Réservation validée !"), time.sleep(1), st.rerun()
+                else:
+                    st.warning("Veuillez remplir tous les champs.")
+
+        # --- ICI ON EST HORS DU FORMULAIRE (aligné sur le 'with') ---
+        if st.session_state.get('confirm_add_doublon'):
+            st.info("ℹ️ Cliquez ci-dessous pour forcer l'ajout en doublon.")
+            if st.button("👍 Confirmer le doublon volontaire"):
+                conf = st.session_state['confirm_add_doublon']
+                requests.post(SCRIPT_URL, data=json.dumps({
+                    "action":"add",
+                    "date":conf['date'].strftime("%d/%m/%Y"),
+                    "equipage":conf['eq'].upper(),
+                    "horaire":conf['hr'],
+                    "simu":conf['sm']
+                }))
+                del st.session_state['confirm_add_doublon'] # On nettoie la session
+                st.success("✅ Doublon ajouté !"), time.sleep(1), st.rerun()
                 else:
                     st.warning("Veuillez remplir tous les champs.")
 
