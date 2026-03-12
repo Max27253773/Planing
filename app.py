@@ -11,8 +11,26 @@ from PIL import Image, ImageDraw, ImageFont
 # --- CONFIGURATION ---
 st.set_page_config(page_title="⚓ Planning", layout="wide")
 
-# --- MESSAGE ALERTE MODE CLAIR ---
-st.warning("⚠️ **AFFICHAGE OPTIMAL** : Pour une meilleure visibilité, assurez-vous que votre téléphone est en **MODE CLAIR**. Le mode sombre peut masquer certains textes.")
+# --- BANDEAU D'ALERTE FORCE (VISIBLE EN MODE SOMBRE) ---
+st.markdown("""
+    <div style="
+        background-color: #FFFFFF; 
+        color: #FF0000; 
+        padding: 15px; 
+        border: 4px solid #FF0000; 
+        border-radius: 10px; 
+        text-align: center; 
+        font-weight: bold; 
+        font-size: 1.2rem; 
+        margin-bottom: 20px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+    ">
+        ⚠️ ATTENTION : PASSEZ VOTRE TÉLÉPHONE EN "MODE CLAIR"<br>
+        <span style="color: #000000; font-size: 0.9rem;">
+            Le mode sombre rend certains textes et plannings invisibles.
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- CONFIGURATION FIXE ---
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1mmPHzEY9p7ohdzvIYvwQOvqmKNa_8VQdZyl4sj1nksw/export?format=csv&gid=0"
