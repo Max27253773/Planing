@@ -195,15 +195,22 @@ elif menu == "📊 Statistiques":
 
 elif menu == "🔐 Administration":
     st.markdown("<h1>⚙️ Gestion des Réservations</h1>", unsafe_allow_html=True)
-    st.sidebar.subheader("🔒 Accès Restreint")
     pwd = st.sidebar.text_input("Saisir le mot de passe", type="password")
     
     if pwd == ADMIN_PASSWORD:
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
+        
         def format_resa(idx):
             r = df.loc[idx]
-            return f"{r['Date']} | {r['Horaire']} | {r['Simu']} | {r['Equipage']}"
+            return f"{r['Date']} | {r['Simu']} | {r['Equipage']} ({r['Horaire']})"
         
+        # --- FILTRE POUR LA MODIFICATION ET SUPPRESSION ---
+        # On ne propose que les réservations de la SEMAINE et de l'ANNÉE sélectionnées
+        df_filtre_admin = df[
+            (df['Date_DT'].dt.isocalendar().week == semaine_sel) & 
+            (df['Date_DT'].dt.year == annee_sel)
+        ].sort_values(by=['Date_DT', 'Horaire'])
+
         with tab1:
             with st.form("a", clear_on_submit=True):
                 d = st.date_input("Date", value=datetime.now())
@@ -214,22 +221,29 @@ elif menu == "🔐 Administration":
                     if eq and hr:
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d.strftime("%d/%m/%Y"),"equipage":eq.upper(),"horaire":hr,"simu":sm}))
                         st.success("✅ Ajouté !"), time.sleep(1), st.rerun()
+        
         with tab2:
-            if not df.empty:
-                idx = st.selectbox("Sélectionner la ligne", df.index, format_func=format_resa)
+            if not df_filtre_admin.empty:
+                st.info(f"Affichage des réservations de la SEMAINE {semaine_sel}")
+                idx = st.selectbox("Sélectionner le créneau à modifier", df_filtre_admin.index, format_func=format_resa)
                 with st.form("e"):
                     ed, ee, eh = st.date_input("Date", value=df.loc[idx,'Date_DT']), st.text_input("Equipage", df.loc[idx,'Equipage']), st.text_input("Horaire", df.loc[idx,'Horaire'])
                     s_list = list(SIMU_CONFIG.keys())
                     current_s = str(df.loc[idx,'Simu']).strip().upper()
                     es = st.selectbox("Simu", s_list, index=s_list.index(current_s) if current_s in s_list else 0)
-                    if st.form_submit_button("Mettre à jour"):
+                    if st.form_submit_button("Enregistrer les modifications"):
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"update","row":int(idx)+2,"date":ed.strftime("%d/%m/%Y"),"equipage":ee.upper(),"horaire":eh,"simu":es}))
                         st.success("📝 Modifié !"), time.sleep(1), st.rerun()
+            else:
+                st.warning(f"Aucune réservation trouvée pour la semaine {semaine_sel}.")
+        
         with tab3:
-            if not df.empty:
-                t = st.selectbox("Ligne à supprimer", df.index, format_func=format_resa)
+            if not df_filtre_admin.empty:
+                t = st.selectbox("Sélectionner le créneau à supprimer", df_filtre_admin.index, format_func=format_resa)
                 if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer la suppression")):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(t)+2}))
                     st.success("🗑️ Supprimé !"), time.sleep(1), st.rerun()
+            else:
+                st.warning(f"Aucune réservation à supprimer cette semaine.")
     else:
         st.error("🔑 Entrez le mot de passe dans la barre latérale.")
