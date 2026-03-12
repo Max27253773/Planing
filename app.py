@@ -80,7 +80,7 @@ else:
 current_color = SIMU_CONFIG.get(simu_sel, "#000000")
 text_on_color = "#000000" if simu_sel in ["PHOBOS", "NEKKAR"] else "#FFFFFF"
 
-# --- CSS (ON GARDE TON STYLE) ---
+# --- CSS ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #FFFFFF !important; }}
@@ -136,10 +136,13 @@ if menu == "📅 Planning":
                         html_bloc += f'<div class="calendar-cell-unique" style="background-color:{current_color}; height:{hauteur_px}px;">{r["Equipage"]}</div>'
                 
                 grid_class = 'grid-line-hour' if is_pile else 'grid-line-min'
-                # --- LA MODIFICATION EST ICI : on ajoute &nbsp; (espace insécable) ---
-                st.markdown(f"<div style='position:relative; width:100%; height:45px;'><div class='{grid_class}'>&nbsp;</div>{html_bloc}</div>", unsafe_allow_html=True)
+                # --- LA MODIFICATION RADICALE EST ICI : style='height:45px !important;' ---
+                st.markdown(f"""<div style="position:relative; width:100%; height:45px !important; min-height:45px !important; max-height:45px !important; display:block;">
+                                    <div class='{grid_class}' style='height:45px !important;'>&nbsp;</div>
+                                    {html_bloc}
+                                </div>""", unsafe_allow_html=True)
 
-# --- RESTE DU CODE (STATS / ADMIN) SANS AUCUNE MODIFICATION ---
+# --- RESTE DU CODE IDENTIQUE ---
 elif menu == "📊 Statistiques":
     st.markdown("<h1>📊 Statistiques</h1>", unsafe_allow_html=True)
     if not df.empty:
