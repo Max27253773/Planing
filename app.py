@@ -56,12 +56,10 @@ annee_actuelle = maintenant.year
 semaine_actuelle = maintenant.isocalendar()[1]
 jour_actuel_idx = maintenant.weekday() 
 
-# Sélecteurs Barre Latérale
 annee_sel = st.sidebar.selectbox("Année", [2025, 2026, 2027], index=1)
 semaine_sel = st.sidebar.selectbox("Semaine", range(1, 54), index=semaine_actuelle - 1)
 simu_sel = st.sidebar.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
 
-# --- OPTIMISATION MOBILE ---
 st.sidebar.divider()
 st.sidebar.subheader("📱 Options d'affichage")
 mode_vue = st.sidebar.segmented_control("Format", ["Semaine", "Jour"], default="Jour")
@@ -69,7 +67,6 @@ mode_vue = st.sidebar.segmented_control("Format", ["Semaine", "Jour"], default="
 monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).weekday())) + timedelta(weeks=semaine_sel-1)
 week_days = [monday + timedelta(days=i) for i in range(5)]
 
-# Si mode Jour, on choisit quel jour afficher
 if mode_vue == "Jour":
     choix_jour = st.sidebar.selectbox("Choisir le jour", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"], 
                                     index=min(jour_actuel_idx, 4) if annee_sel == annee_actuelle and semaine_sel == semaine_actuelle else 0)
@@ -83,35 +80,26 @@ else:
 current_color = SIMU_CONFIG.get(simu_sel, "#000000")
 text_on_color = "#000000" if simu_sel in ["PHOBOS", "NEKKAR"] else "#FFFFFF"
 
-# --- CSS ADAPTATIF ET CORRECTIF ---
+# --- CSS ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #FFFFFF !important; }}
     [data-testid="stSidebar"] {{ background-color: #E2E8F0 !important; border-right: 2px solid #000000 !important; }}
     h1 {{ font-size: 1.8rem !important; font-weight: 900 !important; color: #000000 !important; }}
     
-    /* CORRECTIF MOBILE : On force Streamlit à afficher le contenu même vide */
-    [data-testid="stVerticalBlock"] > div {{
-        min-height: 0px !important;
-    }}
-
-    .calendar-cell-unique {{ 
-        position: absolute; top: 1px; left: 2px; right: 2px; z-index: 100; 
-        padding: 0px 4px; border-radius: 2px; border: 2px solid #000000; 
-        color: {text_on_color} !important; text-align: center; font-weight: 900; 
-        display: flex; align-items: center; justify-content: center; 
-        box-shadow: 2px 2px 0px rgba(0,0,0,1);
-        box-sizing: border-box;
-        line-height: 1.1;
-        font-size: {"13px" if mode_vue == "Jour" else "10px"}; 
-    }}
+    .grid-line-hour {{ border-bottom: 2px solid #333333 !important; height: 45px; display: flex; align-items: center; justify-content: center; }}
+    .grid-line-min {{ border-bottom: 1px dashed #777777 !important; height: 45px; display: flex; align-items: center; justify-content: center; }}
     
-    .grid-line-hour {{ border-bottom: 2px solid #333333 !important; height: 45px; display: block !important; }}
-    .grid-line-min {{ border-bottom: 1px dashed #777777 !important; height: 45px; display: block !important; }}
-    
-    .stButton button {{ width: 100% !important; font-weight: bold !important; }}
-    @media (max-width: 640px) {{
-        .main .block-container {{ padding: 1rem 0.5rem !important; }}
+    .filled-cell {{
+        background-color: {current_color} !important;
+        color: {text_on_color} !important;
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: 14px;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -123,7 +111,6 @@ df_view = df[df['Simu'].str.strip().str.upper() == simu_sel.upper()]
 if menu == "📅 Planning":
     st.markdown(f"<h1>⚓ {simu_sel}</h1>", unsafe_allow_html=True)
     
-    # En-têtes de colonnes
     cols = st.columns(colonnes_layout)
     jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
     
@@ -131,31 +118,33 @@ if menu == "📅 Planning":
         label = jours_fr[jour_idx] if mode_vue == "Jour" else jours_fr[i]
         cols[i+1].markdown(f"<div style='text-align:center; background-color:{current_color}; color:{text_on_color}; padding:8px; font-weight:900; border:2px solid black; box-shadow: 2px 2px 0px black;'>{label}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
 
-    # Grille horaire
     for q in QUARTS_HEURES:
         if q == "20:30": continue
         row_cols = st.columns(colonnes_layout)
         is_pile = q.endswith(":00")
         h_act = int(q.split(':')[0]) + int(q.split(':')[1])/60
         
-        # Colonne Heure
         row_cols[0].markdown(f"<div style='height:45px; display:flex; align-items:center; justify-content:flex-end; padding-right:10px; font-weight:900;'>{q}</div>", unsafe_allow_html=True)
         
-        # Colonnes Jours
         for i, d in enumerate(jours_a_afficher):
             with row_cols[i+1]:
                 resas = df_view[df_view['Date_DT'].dt.date == d.date()]
-                html_bloc = ""
+                
+                # RECTIFICATION : On vérifie si l'heure actuelle tombe dans un créneau
+                content = "&nbsp;"
+                is_in_slot = False
                 for _, r in resas.iterrows():
                     h_deb, h_fin = extraire_heures(r['Horaire'])
-                    if h_deb == h_act:
-                        # Calcul strict
-                        hauteur_px = int((h_fin - h_deb) * 2 * 45) - 2
-                        html_bloc += f'<div class="calendar-cell-unique" style="background-color:{current_color}; height:{hauteur_px}px;">{r["Equipage"]}</div>'
+                    if h_deb is not None and h_deb <= h_act < h_fin:
+                        is_in_slot = True
+                        if h_deb == h_act: content = r['Equipage']
+                        break
                 
-                grid_class = 'grid-line-hour' if is_pile else 'grid-line-min'
-                # On force la div à contenir un espace insécable pour ne pas s'écraser
-                st.markdown(f"<div style='position:relative; width:100%; height:45px;'><div class='{grid_class}'>&nbsp;</div>{html_bloc}</div>", unsafe_allow_html=True)
+                grid_style = "grid-line-hour" if is_pile else "grid-line-min"
+                if is_in_slot:
+                    st.markdown(f"<div class='{grid_style}' style='background-color:{current_color};'><div class='filled-cell'>{content}</div></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div class='{grid_style}'>&nbsp;</div>", unsafe_allow_html=True)
 
 elif menu == "📊 Statistiques":
     st.markdown("<h1>📊 Statistiques</h1>", unsafe_allow_html=True)
@@ -166,13 +155,11 @@ elif menu == "📊 Statistiques":
         df['Duree_H'] = df['Horaire'].apply(calcul_duree)
         df['Mois'] = df['Date_DT'].dt.strftime('%m - %B')
         df['Annee'] = df['Date_DT'].dt.year
-
         st.subheader("📁 Volume horaire par équipage (Mensuel)")
         mois_dispo = sorted(df['Mois'].unique())
         mois_sel = st.selectbox("Mois", mois_dispo, index=len(mois_dispo)-1)
         stats_equipage = df[df['Mois'] == mois_sel].groupby('Equipage')['Duree_H'].sum().reset_index()
         st.dataframe(stats_equipage.sort_values(by='Duree_H', ascending=False), use_container_width=True, hide_index=True)
-
         st.divider()
         st.subheader("🖥️ Utilisation des simulateurs (Annuel)")
         stats_simu = df[df['Annee'] == annee_sel].groupby('Simu')['Duree_H'].sum().sort_values(ascending=False)
@@ -184,13 +171,11 @@ elif menu == "🔐 Administration":
     st.markdown("<h1>⚙️ Gestion des Réservations</h1>", unsafe_allow_html=True)
     st.sidebar.subheader("🔒 Accès Restreint")
     pwd = st.sidebar.text_input("Saisir le mot de passe", type="password")
-    
     if pwd == ADMIN_PASSWORD:
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
         def format_resa(idx):
             r = df.loc[idx]
             return f"{r['Date']} | {r['Horaire']} | {r['Simu']} | {r['Equipage']}"
-        
         with tab1:
             with st.form("a", clear_on_submit=True):
                 d = st.date_input("Date", value=datetime.now())
