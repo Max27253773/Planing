@@ -54,7 +54,7 @@ st.sidebar.divider()
 maintenant = datetime.now()
 annee_actuelle = maintenant.year
 semaine_actuelle = maintenant.isocalendar()[1]
-jour_actuel_idx = maintenant.weekday() # 0=Lundi, 4=Vendredi
+jour_actuel_idx = maintenant.weekday() 
 
 # Sélecteurs Barre Latérale
 annee_sel = st.sidebar.selectbox("Année", [2025, 2026, 2027], index=1)
@@ -75,7 +75,7 @@ if mode_vue == "Jour":
                                     index=min(jour_actuel_idx, 4) if annee_sel == annee_actuelle and semaine_sel == semaine_actuelle else 0)
     jour_idx = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"].index(choix_jour)
     jours_a_afficher = [week_days[jour_idx]]
-    colonnes_layout = [0.7, 3] # Plus de place pour le contenu
+    colonnes_layout = [0.8, 4] 
 else:
     jours_a_afficher = week_days
     colonnes_layout = [0.6] + [1]*5
@@ -83,27 +83,48 @@ else:
 current_color = SIMU_CONFIG.get(simu_sel, "#000000")
 text_on_color = "#000000" if simu_sel in ["PHOBOS", "NEKKAR"] else "#FFFFFF"
 
-# --- CSS ADAPTATIF ---
+# --- CSS ADAPTATIF ET CORRECTIF ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #FFFFFF !important; }}
     [data-testid="stSidebar"] {{ background-color: #E2E8F0 !important; border-right: 2px solid #000000 !important; }}
     h1 {{ font-size: 1.8rem !important; font-weight: 900 !important; color: #000000 !important; }}
     
-    /* Cellules du calendrier */
+    /* Conteneur de cellule verrouillé pour l'alignement */
+    .slot-container {{
+        position: relative;
+        width: 100%;
+        height: 45px;
+        box-sizing: border-box;
+    }}
+
+    /* Cellules du calendrier avec correctif de boîte */
     .calendar-cell-unique {{ 
-        position: absolute; top: 2px; left: 2px; right: 2px; z-index: 100; 
-        padding: 4px; border-radius: 2px; border: 2px solid #000000; 
+        position: absolute; top: 1px; left: 2px; right: 2px; z-index: 100; 
+        padding: 0px 4px; border-radius: 2px; border: 2px solid #000000; 
         color: {text_on_color} !important; text-align: center; font-weight: 900; 
         display: flex; align-items: center; justify-content: center; 
         box-shadow: 2px 2px 0px rgba(0,0,0,1);
-        font-size: {"14px" if mode_vue == "Jour" else "11px"}; 
+        box-sizing: border-box;
+        overflow: hidden;
+        line-height: 1.1;
+        font-size: {"13px" if mode_vue == "Jour" else "10px"}; 
     }}
     
-    .grid-line-hour {{ border-bottom: 2px solid #333333 !important; height: 45px; }}
-    .grid-line-min {{ border-bottom: 1px dashed #777777 !important; height: 45px; }}
+    .grid-line-hour {{ border-bottom: 2px solid #333333 !important; height: 45px; box-sizing: border-box; }}
+    .grid-line-min {{ border-bottom: 1px dashed #777777 !important; height: 45px; box-sizing: border-box; }}
     
-    /* Optimisation des inputs sur mobile */
+    /* Optimisation des colonnes horaires */
+    .time-label-cell {{
+        height: 45px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 10px;
+        font-weight: 900;
+        box-sizing: border-box;
+    }}
+
     .stButton button {{ width: 100% !important; font-weight: bold !important; }}
     @media (max-width: 640px) {{
         .main .block-container {{ padding: 1rem 0.5rem !important; }}
@@ -133,8 +154,9 @@ if menu == "📅 Planning":
         is_pile = q.endswith(":00")
         h_act = int(q.split(':')[0]) + int(q.split(':')[1])/60
         
-        # Colonne Heure
-        row_cols[0].markdown(f"<div style='height:45px; display:flex; align-items:center; justify-content:flex-end; padding-right:10px; font-weight:900; border-right:3px solid {current_color if is_pile else '#EEE'};'>{q}</div>", unsafe_allow_html=True)
+        # Colonne Heure avec bordure dynamique
+        border_style = f"border-right:4px solid {current_color};" if is_pile else "border-right:1px solid #CCC;"
+        row_cols[0].markdown(f"<div class='time-label-cell' style='{border_style}'>{q}</div>", unsafe_allow_html=True)
         
         # Colonnes Jours
         for i, d in enumerate(jours_a_afficher):
@@ -144,14 +166,16 @@ if menu == "📅 Planning":
                 for _, r in resas.iterrows():
                     h_deb, h_fin = extraire_heures(r['Horaire'])
                     if h_deb == h_act:
-                        hauteur_px = int((h_fin - h_deb) * 2 * 45) - 4 
+                        # Calcul de hauteur avec correctif -2px pour les bordures
+                        hauteur_px = int((h_fin - h_deb) * 2 * 45) - 2
                         html_bloc += f'<div class="calendar-cell-unique" style="background-color:{current_color}; height:{hauteur_px}px;">{r["Equipage"]}</div>'
-                st.markdown(f"<div style='position:relative; width:100%; height:45px;'><div class='{'grid-line-hour' if is_pile else 'grid-line-min'}'></div>{html_bloc}</div>", unsafe_allow_html=True)
+                
+                grid_class = 'grid-line-hour' if is_pile else 'grid-line-min'
+                st.markdown(f"<div class='slot-container'><div class='{grid_class}'></div>{html_bloc}</div>", unsafe_allow_html=True)
 
 elif menu == "📊 Statistiques":
     st.markdown("<h1>📊 Statistiques</h1>", unsafe_allow_html=True)
     if not df.empty:
-        # (Logique stats identique, Streamlit gère bien les graphiques sur mobile)
         def calcul_duree(horaire_str):
             h_deb, h_fin = extraire_heures(horaire_str)
             return (h_fin - h_deb) if h_deb is not None else 0
@@ -185,7 +209,6 @@ elif menu == "🔐 Administration":
         
         with tab1:
             with st.form("a", clear_on_submit=True):
-                # Date dynamique sur aujourd'hui
                 d = st.date_input("Date", value=datetime.now())
                 eq = st.text_input("Equipage")
                 hr = st.text_input("Horaire (ex: 08:00 - 10:00)")
