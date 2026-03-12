@@ -54,12 +54,14 @@ st.sidebar.divider()
 maintenant = datetime.now()
 annee_actuelle = maintenant.year
 semaine_actuelle = maintenant.isocalendar()[1]
-jour_actuel_idx = maintenant.weekday() 
+jour_actuel_idx = maintenant.weekday() # 0=Lundi, 4=Vendredi
 
+# Sélecteurs Barre Latérale
 annee_sel = st.sidebar.selectbox("Année", [2025, 2026, 2027], index=1)
 semaine_sel = st.sidebar.selectbox("Semaine", range(1, 54), index=semaine_actuelle - 1)
 simu_sel = st.sidebar.selectbox("Simulateur", list(SIMU_CONFIG.keys()))
 
+# --- OPTIMISATION MOBILE ---
 st.sidebar.divider()
 st.sidebar.subheader("📱 Options d'affichage")
 mode_vue = st.sidebar.segmented_control("Format", ["Semaine", "Jour"], default="Jour")
@@ -67,12 +69,13 @@ mode_vue = st.sidebar.segmented_control("Format", ["Semaine", "Jour"], default="
 monday = (datetime(annee_sel, 1, 4) - timedelta(days=datetime(annee_sel, 1, 4).weekday())) + timedelta(weeks=semaine_sel-1)
 week_days = [monday + timedelta(days=i) for i in range(5)]
 
+# Si mode Jour, on choisit quel jour afficher
 if mode_vue == "Jour":
     choix_jour = st.sidebar.selectbox("Choisir le jour", ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"], 
                                     index=min(jour_actuel_idx, 4) if annee_sel == annee_actuelle and semaine_sel == semaine_actuelle else 0)
     jour_idx = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"].index(choix_jour)
     jours_a_afficher = [week_days[jour_idx]]
-    colonnes_layout = [0.8, 4] 
+    colonnes_layout = [0.7, 3] # Plus de place pour le contenu
 else:
     jours_a_afficher = week_days
     colonnes_layout = [0.6] + [1]*5
@@ -80,99 +83,136 @@ else:
 current_color = SIMU_CONFIG.get(simu_sel, "#000000")
 text_on_color = "#000000" if simu_sel in ["PHOBOS", "NEKKAR"] else "#FFFFFF"
 
-# --- CSS ---
+# --- CSS ADAPTATIF ---
 st.markdown(f"""
     <style>
     .stApp {{ background-color: #FFFFFF !important; }}
     [data-testid="stSidebar"] {{ background-color: #E2E8F0 !important; border-right: 2px solid #000000 !important; }}
+    h1 {{ font-size: 1.8rem !important; font-weight: 900 !important; color: #000000 !important; }}
     
+    /* Correction Mobile : Cadre à hauteur fixe pour empêcher le tassement */
+    .planning-frame {{
+        position: relative;
+        width: 100%;
+        background: #FFFFFF;
+        height: 1350px; 
+        border: 1px solid #000;
+        margin-bottom: 50px;
+    }}
+    .hour-row {{
+        position: absolute;
+        left: 0; right: 0;
+        height: 45px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px dashed #CCC;
+        box-sizing: border-box;
+    }}
+    .hour-text {{
+        width: 60px;
+        font-size: 13px;
+        font-weight: 900;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 8px;
+        border-right: 3px solid {current_color};
+        background: #F0F2F6;
+    }}
     .calendar-cell-unique {{ 
-        position: absolute; top: 1px; left: 2px; right: 2px; z-index: 100; 
-        padding: 0px 4px; border-radius: 2px; border: 2px solid #000000; 
+        position: absolute; 
+        left: 65px; 
+        right: 5px; 
+        z-index: 100; 
+        padding: 4px; border-radius: 2px; border: 2px solid #000000; 
         color: {text_on_color} !important; text-align: center; font-weight: 900; 
         display: flex; align-items: center; justify-content: center; 
         box-shadow: 2px 2px 0px rgba(0,0,0,1);
-        font-size: {"13px" if mode_vue == "Jour" else "10px"}; 
-        line-height: 1.1;
+        box-sizing: border-box;
+        font-size: 14px;
     }}
     
-    .grid-line-hour {{ border-bottom: 2px solid #333333 !important; height: 45px; }}
-    .grid-line-min {{ border-bottom: 1px dashed #777777 !important; height: 45px; }}
-    
-    .time-label-cell {{
-        height: 45px; display: flex; align-items: center; justify-content: flex-end;
-        padding-right: 10px; font-weight: 900;
+    /* Optimisation des inputs sur mobile */
+    .stButton button {{ width: 100% !important; font-weight: bold !important; }}
+    @media (max-width: 640px) {{
+        .main .block-container {{ padding: 1rem 0.5rem !important; }}
     }}
     </style>
     """, unsafe_allow_html=True)
 
 df_view = df[df['Simu'].str.strip().str.upper() == simu_sel.upper()]
 
+# --- NAVIGATION ---
+
 if menu == "📅 Planning":
     st.markdown(f"<h1>⚓ {simu_sel}</h1>", unsafe_allow_html=True)
-    cols = st.columns(colonnes_layout)
-    jours_fr = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
     
-    for i, d in enumerate(jours_a_afficher):
-        label = jours_fr[jour_idx] if mode_vue == "Jour" else jours_fr[i]
-        cols[i+1].markdown(f"<div style='text-align:center; background-color:{current_color}; color:{text_on_color}; padding:8px; font-weight:900; border:2px solid black; box-shadow: 2px 2px 0px black;'>{label}<br>{d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
-
-    for q in QUARTS_HEURES:
-        if q == "20:30": continue
-        row_cols = st.columns(colonnes_layout)
-        is_pile = q.endswith(":00")
-        h_act = int(q.split(':')[0]) + int(q.split(':')[1])/60
+    for d in jours_a_afficher:
+        # En-tête du jour
+        st.markdown(f"<div style='text-align:center; background-color:{current_color}; color:{text_on_color}; padding:8px; font-weight:900; border:2px solid black; box-shadow: 2px 2px 0px black; margin-bottom:10px;'>{d.strftime('%A %d/%m')}</div>", unsafe_allow_html=True)
         
-        row_cols[0].markdown(f"<div class='time-label-cell'>{q}</div>", unsafe_allow_html=True)
+        # Construction de la grille fixe
+        html_jour = '<div class="planning-frame">'
         
-        for i, d in enumerate(jours_a_afficher):
-            with row_cols[i+1]:
-                resas = df_view[df_view['Date_DT'].dt.date == d.date()]
-                html_bloc = ""
-                for _, r in resas.iterrows():
-                    h_deb, h_fin = extraire_heures(r['Horaire'])
-                    if h_deb == h_act:
-                        hauteur_px = int((h_fin - h_deb) * 2 * 45) - 2
-                        html_bloc += f'<div class="calendar-cell-unique" style="background-color:{current_color}; height:{hauteur_px}px;">{r["Equipage"]}</div>'
-                
-                grid_class = 'grid-line-hour' if is_pile else 'grid-line-min'
-                # --- LA MODIFICATION RADICALE EST ICI : style='height:45px !important;' ---
-                st.markdown(f"""<div style="position:relative; width:100%; height:45px !important; min-height:45px !important; max-height:45px !important; display:block;">
-                                    <div class='{grid_class}' style='height:45px !important;'>&nbsp;</div>
-                                    {html_bloc}
-                                </div>""", unsafe_allow_html=True)
+        # 1. Les lignes horaires
+        for i, q in enumerate(QUARTS_HEURES):
+            if q == "20:30": continue
+            top = i * 45
+            style = "border-bottom: 2px solid #333;" if q.endswith(":00") else ""
+            html_jour += f'<div class="hour-row" style="top:{top}px; {style}"><div class="hour-text">{q}</div></div>'
+        
+        # 2. Les blocs de réservation (Positionnement Absolu)
+        resas = df_view[df_view['Date_DT'].dt.date == d.date()]
+        for _, r in resas.iterrows():
+            h_deb, h_fin = extraire_heures(r['Horaire'])
+            if h_deb is not None:
+                # Calcul : (Heure - 6h du matin) * 2 créneaux * 45px
+                top_pos = int((h_deb - 6) * 2 * 45)
+                hauteur = int((h_fin - h_deb) * 2 * 45) - 2
+                html_jour += f'<div class="calendar-cell-unique" style="top:{top_pos}px; height:{hauteur}px; background-color:{current_color};">{r["Equipage"]}</div>'
+        
+        html_jour += '</div>'
+        st.markdown(html_jour, unsafe_allow_html=True)
 
-# --- RESTE DU CODE IDENTIQUE ---
 elif menu == "📊 Statistiques":
     st.markdown("<h1>📊 Statistiques</h1>", unsafe_allow_html=True)
     if not df.empty:
+        # (Logique stats identique, Streamlit gère bien les graphiques sur mobile)
         def calcul_duree(horaire_str):
             h_deb, h_fin = extraire_heures(horaire_str)
             return (h_fin - h_deb) if h_deb is not None else 0
         df['Duree_H'] = df['Horaire'].apply(calcul_duree)
         df['Mois'] = df['Date_DT'].dt.strftime('%m - %B')
         df['Annee'] = df['Date_DT'].dt.year
+
         st.subheader("📁 Volume horaire par équipage (Mensuel)")
         mois_dispo = sorted(df['Mois'].unique())
         mois_sel = st.selectbox("Mois", mois_dispo, index=len(mois_dispo)-1)
         stats_equipage = df[df['Mois'] == mois_sel].groupby('Equipage')['Duree_H'].sum().reset_index()
         st.dataframe(stats_equipage.sort_values(by='Duree_H', ascending=False), use_container_width=True, hide_index=True)
+
         st.divider()
         st.subheader("🖥️ Utilisation des simulateurs (Annuel)")
         stats_simu = df[df['Annee'] == annee_sel].groupby('Simu')['Duree_H'].sum().sort_values(ascending=False)
         st.bar_chart(stats_simu)
+    else:
+        st.warning("Aucune donnée.")
 
 elif menu == "🔐 Administration":
     st.markdown("<h1>⚙️ Gestion des Réservations</h1>", unsafe_allow_html=True)
     st.sidebar.subheader("🔒 Accès Restreint")
     pwd = st.sidebar.text_input("Saisir le mot de passe", type="password")
+    
     if pwd == ADMIN_PASSWORD:
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
         def format_resa(idx):
             r = df.loc[idx]
             return f"{r['Date']} | {r['Horaire']} | {r['Simu']} | {r['Equipage']}"
+        
         with tab1:
             with st.form("a", clear_on_submit=True):
+                # Date dynamique sur aujourd'hui
                 d = st.date_input("Date", value=datetime.now())
                 eq = st.text_input("Equipage")
                 hr = st.text_input("Horaire (ex: 08:00 - 10:00)")
@@ -198,3 +238,5 @@ elif menu == "🔐 Administration":
                 if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer la suppression")):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(t)+2}))
                     st.success("🗑️ Supprimé !"), time.sleep(1), st.rerun()
+    else:
+        st.error("🔑 Entrez le mot de passe dans la barre lat
