@@ -431,7 +431,7 @@ elif menu == "🔐 Administration":
 
         with tab3:
             if not df_filtre_admin.empty:
-                t_del = st.selectbox("Créneau à supprimer", df_filtre_admin.index, format_func=lambda i: f"{df.loc[i,'Date']} | {df.loc[i,'Equipage']}")
+                t_del = st.selectbox("Créneau à supprimer", df_filtre_admin.index, format_func=lambda i: f"{df.loc[i,'Date']} | {df.loc[i,'Equipage']} ({df.loc[i,'Horaire']})")
                 if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer")):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(t_del)+2}))
                     st.success("🗑️ Supprimé !"), time.sleep(1), st.rerun()
