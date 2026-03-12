@@ -222,8 +222,7 @@ elif menu == "🔐 Administration":
             r = df.loc[idx]
             return f"{r['Date']} | {r['Simu']} | {r['Equipage']} ({r['Horaire']})"
         
-        # --- FILTRE POUR LA MODIFICATION ET SUPPRESSION ---
-        # On ne propose que les réservations de la SEMAINE et de l'ANNÉE sélectionnées
+       # FILTRE COMMUN POUR MODIF / SUPPRESSION (Semaine + Année)
         df_filtre_admin = df[
             (df['Date_DT'].dt.isocalendar().week == semaine_sel) & 
             (df['Date_DT'].dt.year == annee_sel)
@@ -242,7 +241,7 @@ elif menu == "🔐 Administration":
         
         with tab2:
             if not df_filtre_admin.empty:
-                st.info(f"Affichage des réservations de la SEMAINE {semaine_sel}")
+                st.info(f"Modifier un créneau de la SEMAINE {semaine_sel}")
                 idx = st.selectbox("Sélectionner le créneau à modifier", df_filtre_admin.index, format_func=format_resa)
                 with st.form("e"):
                     ed, ee, eh = st.date_input("Date", value=df.loc[idx,'Date_DT']), st.text_input("Equipage", df.loc[idx,'Equipage']), st.text_input("Horaire", df.loc[idx,'Horaire'])
@@ -253,15 +252,17 @@ elif menu == "🔐 Administration":
                         requests.post(SCRIPT_URL, data=json.dumps({"action":"update","row":int(idx)+2,"date":ed.strftime("%d/%m/%Y"),"equipage":ee.upper(),"horaire":eh,"simu":es}))
                         st.success("📝 Modifié !"), time.sleep(1), st.rerun()
             else:
-                st.warning(f"Aucune réservation trouvée pour la semaine {semaine_sel}.")
+                st.warning(f"Aucune donnée à modifier pour la semaine {semaine_sel}.")
         
         with tab3:
             if not df_filtre_admin.empty:
+                st.info(f"Supprimer un créneau de la SEMAINE {semaine_sel}")
                 t = st.selectbox("Sélectionner le créneau à supprimer", df_filtre_admin.index, format_func=format_resa)
+                st.warning("⚠️ Attention, la suppression est définitive.")
                 if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer la suppression")):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(t)+2}))
                     st.success("🗑️ Supprimé !"), time.sleep(1), st.rerun()
             else:
-                st.warning(f"Aucune réservation à supprimer cette semaine.")
+                st.warning(f"Aucune donnée à supprimer pour la semaine {semaine_sel}.")
     else:
         st.error("🔑 Entrez le mot de passe dans la barre latérale.")
