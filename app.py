@@ -412,8 +412,8 @@ elif menu == "🔐 Administration":
             (df['Date_DT'].dt.year == annee_sel)
         ].sort_values(by=['Date_DT', 'Horaire'])
 
-         with tab1:
-            with st.form("ajouter_form", clear_on_submit=True):
+     with tab1:
+        with st.form("ajouter_form", clear_on_submit=True):
             d_add = st.date_input("Date", value=datetime.now())
             eq_add = st.text_input("Equipage", placeholder="Nom")
             hr_add = st.text_input("Horaire", placeholder="08h00 - 10h00")
