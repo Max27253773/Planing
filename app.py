@@ -92,6 +92,14 @@ def load_data():
 df = load_data()
 menu = st.sidebar.radio("MENU", ["📅 Planning","🔍 Trouver ses créneaux", "📊 Statistiques", "🔐 Administration"])
 
+# --- CONNEXION ADMIN GLOBALE ---
+st.sidebar.title("🔐 Accès Admin")
+admin_key = st.sidebar.text_input("Mot de passe", type="password", key="global_pwd")
+is_admin = (admin_key == ADMIN_PASSWORD)
+
+if is_admin:
+    st.sidebar.success("Mode Administrateur Actif")
+    
 st.sidebar.divider()
 
 # --- CALCUL AUTOMATIQUE DATE/SEMAINE ---
