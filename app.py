@@ -156,31 +156,53 @@ df_view = df[df['Simu'].str.strip().str.upper() == simu_sel.upper()]
 
 if menu == "📅 Planning":
     st.markdown(f"<h1>⚓ {simu_sel}</h1>", unsafe_allow_html=True)
-    
     if mode_vue == "Jour":
-        choix_jour = st.sidebar.selectbox("Choisir le jour", jours_fr_liste, 
-                                        index=min(jour_actuel_idx, 4) if annee_sel == annee_actuelle and semaine_sel == semaine_actuelle else 0)
-        jour_idx = jours_fr_liste.index(choix_jour)
-        d = week_days[jour_idx]
+        choix_jour = st.sidebar.selectbox("Choisir le jour", jours_fr_liste, index=min(maintenant.weekday(), 4) if annee_sel == maintenant.year else 0)
+        d = week_days[jours_fr_liste.index(choix_jour)]
         
         st.markdown(f"<div style='text-align:center; background-color:{current_color}; color:{text_on_color}; padding:8px; font-weight:900; border:2px solid black; box-shadow: 2px 2px 0px black; margin-bottom:10px;'>{choix_jour} {d.strftime('%d/%m')}</div>", unsafe_allow_html=True)
         
+        # --- DESSIN DU PLANNING ---
         html_jour = '<div class="planning-frame">'
         for i, q in enumerate(QUARTS_HEURES):
-            if i >= 29: break # Sécurité pour ne pas dépasser 20h00 (28 créneaux de 30min de 6h à 20h)
+            if i >= 29: break
             top = i * 45
             style = "border-bottom: 2px solid #333;" if q.endswith(":00") else ""
-            html_jour += f'<div class="hour-row-fixed" style="top:{top}px; {style}"><div style="width:60px; text-align:right; padding-right:8px; font-weight:900; border-right:3px solid {current_color}; background:#F0F2F6; height:100%; display:flex; align-items:center; justify-content:flex-end;">{q}</div></div>'
+            html_jour += f'<div class="hour-row-fixed" style="top:{top}px; {style}"><div style="width:60px; text-align:right; padding-right:8px; font-weight:900; border-right:3px solid {current_color}; background:#F0F2F6; height:100%; display:flex; align-items:center; justify-content:flex-end; color:black;">{q}</div></div>'
         
         resas = df_view[df_view['Date_DT'].dt.date == d.date()]
         for _, r in resas.iterrows():
             h_deb, h_fin = extraire_heures(r['Horaire'])
             if h_deb is not None:
-                top_pos = int((h_deb - 6) * 2 * 45)
-                hauteur = int((h_fin - h_deb) * 2 * 45) - 2
+                top_pos = int((h_deb - 6) * 90)
+                hauteur = int((h_fin - h_deb) * 90) - 2
                 html_jour += f'<div class="calendar-cell-unique" style="top:{top_pos}px; height:{hauteur}px; left:65px; right:5px; background-color:{current_color}; font-size:14px;">{r["Equipage"]}</div>'
         html_jour += '</div>'
         st.markdown(html_jour, unsafe_allow_html=True)
+
+        # --- SECTION QUICK BOOKING (ADMIN UNIQUEMENT) ---
+        # On vérifie si le mot de passe saisi en sidebar est le bon
+        if st.session_state.get('password_input') == ADMIN_PASSWORD or (pwd == ADMIN_PASSWORD if 'pwd' in locals() else False):
+            with st.expander("⚡ Réservation Rapide (Admin)", expanded=False):
+                with st.form("quick_form"):
+                    col1, col2 = st.columns(2)
+                    q_eq = col1.text_input("Équipage")
+                    q_hr = col2.text_input("Horaire", placeholder="ex: 14:00 - 16:00")
+                    
+                    if st.form_submit_button("Réserver immédiatement"):
+                        if q_eq and q_hr:
+                            conf, msg = verifier_conflit(df, d, q_hr, simu_sel)
+                            if conf:
+                                st.error(msg)
+                            else:
+                                requests.post(SCRIPT_URL, data=json.dumps({
+                                    "action":"add",
+                                    "date":d.strftime("%d/%m/%Y"),
+                                    "equipage":q_eq.upper(),
+                                    "horaire":q_hr,
+                                    "simu":simu_sel
+                                }))
+                                st.success("C'est fait !"), time.sleep(1), st.rerun()
 
     else:
         # MODE SEMAINE
