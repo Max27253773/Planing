@@ -276,6 +276,19 @@ elif menu == "🔍 Trouver ses créneaux":
             st.warning(f"Aucune réservation trouvée pour '{nom_cherche}' en semaine {semaine_sel}.")
     else:
         st.info("Saisissez un nom pour voir votre planning de la semaine.")
+
+    # --- COPYRIGHT ET SIGNATURE ---
+st.sidebar.divider()
+st.sidebar.markdown(
+    """
+    <div style='text-align: center; color: #666666; font-size: 0.8rem; padding: 10px;'>
+        © 2026 <b>Maxime JAMAIN</b><br>
+        Tous droits réservés<br>
+        <span style='font-size: 0.7rem;'>Version 2.0 - Planning Simulateurs</span>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
         
 elif menu == "📊 Statistiques":
     st.markdown("<h1>📊 Statistiques</h1>", unsafe_allow_html=True)
