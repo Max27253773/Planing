@@ -60,6 +60,25 @@ def extraire_heures(horaire_str):
     except: pass
     return None, None
 
+def verifier_conflit(df, date_test, horaire_test, simu_test, exclude_idx=None):
+    """Vérifie si un créneau chevauche une réservation existante"""
+    h_deb_new, h_fin_new = extraire_heures(horaire_test)
+    if h_deb_new is None: return False, "Format d'heure invalide."
+    
+    date_test_dt = pd.to_datetime(date_test)
+    # Filtrer par même jour et même simulateur
+    match_df = df[(df['Date_DT'].dt.date == date_test_dt.date()) & 
+                  (df['Simu'].str.strip().str.upper() == simu_test.upper())]
+    
+    for idx, row in match_df.iterrows():
+        if exclude_idx is not None and idx == exclude_idx:
+            continue
+        h_deb_ex, h_fin_ex = extraire_heures(row['Horaire'])
+        if h_deb_ex is not None:
+            if max(h_deb_new, h_deb_ex) < min(h_fin_new, h_fin_ex):
+                return True, f"Conflit avec {row['Equipage']} ({row['Horaire']})"
+    return False, ""
+
 @st.cache_data(ttl=2)
 def load_data():
     try:
@@ -217,22 +236,14 @@ elif menu == "🔐 Administration":
     
     if pwd == ADMIN_PASSWORD:
         tab1, tab2, tab3 = st.tabs(["➕ Ajouter", "📝 Modifier", "🗑️ Supprimer"])
-        
-        def format_resa(idx):
-            r = df.loc[idx]
-            return f"{r['Date']} | {r['Simu']} | {r['Equipage']} ({r['Horaire']})"
-        
-        df_filtre_admin = df[
-            (df['Date_DT'].dt.isocalendar().week == semaine_sel) & 
-            (df['Date_DT'].dt.year == annee_sel)
-        ].sort_values(by=['Date_DT', 'Horaire'])
+        df_filtre_admin = df[(df['Date_DT'].dt.isocalendar().week == semaine_sel) & (df['Date_DT'].dt.year == annee_sel)].sort_values(by=['Date_DT', 'Horaire'])
 
         with tab1:
             with st.form("ajouter_form", clear_on_submit=True):
                 d_add = st.date_input("Date", value=datetime.now())
                 eq_add = st.text_input("Equipage")
                 hr_add = st.text_input("Horaire (ex: 08:00 - 10:00)")
-                sm_add = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(simu_sel_side))
+                sm_add = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(simu_sel))
                 if st.form_submit_button("Vérifier et Ajouter"):
                     if eq_add and hr_add:
                         conflit, msg = verifier_conflit(df, d_add, hr_add, sm_add)
@@ -243,18 +254,15 @@ elif menu == "🔐 Administration":
                             st.success("✅ Réservation validée !"), time.sleep(1), st.rerun()
                     else:
                         st.warning("Veuillez remplir tous les champs.")
-        
+
         with tab2:
             if not df_filtre_admin.empty:
-                idx_mod = st.selectbox("Sélectionner le créneau à modifier", df_filtre_admin.index, format_func=format_resa)
+                idx_mod = st.selectbox("Sélectionner le créneau", df_filtre_admin.index, format_func=lambda i: f"{df.loc[i,'Date']} | {df.loc[i,'Equipage']} ({df.loc[i,'Horaire']})")
                 with st.form("modifier_form"):
                     ed = st.date_input("Date", value=df.loc[idx_mod,'Date_DT'])
                     ee = st.text_input("Equipage", df.loc[idx_mod,'Equipage'])
                     eh = st.text_input("Horaire", df.loc[idx_mod,'Horaire'])
-                    s_list = list(SIMU_CONFIG.keys())
-                    current_s = str(df.loc[idx_mod,'Simu']).strip().upper()
-                    es = st.selectbox("Simu", s_list, index=s_list.index(current_s) if current_s in s_list else 0)
-                    
+                    es = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(str(df.loc[idx_mod,'Simu']).strip().upper()))
                     if st.form_submit_button("Vérifier et Enregistrer"):
                         conflit, msg = verifier_conflit(df, ed, eh, es, exclude_idx=idx_mod)
                         if conflit:
@@ -263,14 +271,13 @@ elif menu == "🔐 Administration":
                             requests.post(SCRIPT_URL, data=json.dumps({"action":"update","row":int(idx_mod)+2,"date":ed.strftime("%d/%m/%Y"),"equipage":ee.upper(),"horaire":eh,"simu":es}))
                             st.success("📝 Modification enregistrée !"), time.sleep(1), st.rerun()
             else:
-                st.warning(f"Aucune donnée à modifier pour la semaine {semaine_sel}.")
-        
+                st.warning("Aucun créneau à modifier cette semaine.")
+
         with tab3:
             if not df_filtre_admin.empty:
-                t_del = st.selectbox("Sélectionner le créneau à supprimer", df_filtre_admin.index, format_func=format_resa)
-                if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer la suppression")):
+                t_del = st.selectbox("Créneau à supprimer", df_filtre_admin.index, format_func=lambda i: f"{df.loc[i,'Date']} | {df.loc[i,'Equipage']}")
+                if st.button("❌ Supprimer définitivement", disabled=not st.checkbox("Confirmer")):
                     requests.post(SCRIPT_URL, data=json.dumps({"action":"delete","row":int(t_del)+2}))
                     st.success("🗑️ Supprimé !"), time.sleep(1), st.rerun()
     else:
-        st.error("🔑 Entrez le mot de passe dans la barre latérale.")
         st.error("🔑 Entrez le mot de passe dans la barre latérale.")
