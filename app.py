@@ -468,8 +468,9 @@ elif menu == "🔐 Administration":
                 }))
                 del st.session_state['confirm_add_doublon'] # On nettoie la session
                 st.success("✅ Doublon ajouté !"), time.sleep(1), st.rerun()
-                    else:
-                        st.warning("Veuillez remplir tous les champs.")
+            
+            else:
+                st.warning("Veuillez remplir tous les champs.")
 
         with tab2:
             if not df_filtre_admin.empty:
