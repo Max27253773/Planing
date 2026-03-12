@@ -418,27 +418,43 @@ elif menu == "🔐 Administration":
                 eq_add = st.text_input("Equipage", placeholder="Nom")
                 hr_add = st.text_input("Horaire", placeholder="08h00 - 10h00")
                 sm_add = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(simu_sel))
-                if st.form_submit_button("Vérifier et Ajouter"):
-                    if eq_add and hr_add:
-                        status, msg = verifier_conflit(df, d_add, hr_add, sm_add, eq_add)
-                        
-                        if status == "block":
-                            st.error(f"❌ {msg}")
-                        elif status == "warn":
-                            st.warning(f"⚠️ {msg}")
-                            st.session_state['confirm_add_doublon'] = {"date":d_add, "eq":eq_add, "hr":hr_add, "sm":sm_add}
-                        else:
-                            # Cas OK : on ajoute direct
-                            requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d_add.strftime("%d/%m/%Y"),"equipage":eq_add.upper(),"horaire":hr_add,"simu":sm_add}))
-                            st.success("✅ Réservation validée !"), time.sleep(1), st.rerun()
+               with st.form("ajouter_form", clear_on_submit=True):
+            d_add = st.date_input("Date", value=datetime.now())
+            eq_add = st.text_input("Equipage", placeholder="Nom")
+            hr_add = st.text_input("Horaire", placeholder="08h00 - 10h00")
+            sm_add = st.selectbox("Simu", list(SIMU_CONFIG.keys()), index=list(SIMU_CONFIG.keys()).index(simu_sel))
+            
+            # Le bouton principal du formulaire
+            if st.form_submit_button("Vérifier et Ajouter"):
+                if eq_add and hr_add:
+                    status, msg = verifier_conflit(df, d_add, hr_add, sm_add, eq_add)
+                    
+                    if status == "block":
+                        st.error(f"❌ {msg}")
+                    elif status == "warn":
+                        st.warning(f"⚠️ {msg}")
+                        # On mémorise les infos pour le bouton de confirmation qui est HORS du formulaire
+                        st.session_state['confirm_add_doublon'] = {"date":d_add, "eq":eq_add, "hr":hr_add, "sm":sm_add}
+                    else:
+                        requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":d_add.strftime("%d/%m/%Y"),"equipage":eq_add.upper(),"horaire":hr_add,"simu":sm_add}))
+                        st.success("✅ Réservation validée !"), time.sleep(1), st.rerun()
+                else:
+                    st.warning("Veuillez remplir tous les champs.")
 
-                # Bouton de confirmation spécifique pour l'admin en cas de doublon
-                if st.session_state.get('confirm_add_doublon'):
-                    if st.button("👍 Confirmer le doublon volontaire"):
-                        conf = st.session_state['confirm_add_doublon']
-                        requests.post(SCRIPT_URL, data=json.dumps({"action":"add","date":conf['date'].strftime("%d/%m/%Y"),"equipage":conf['eq'].upper(),"horaire":conf['hr'],"simu":conf['sm']}))
-                        del st.session_state['confirm_add_doublon']
-                        st.success("✅ Doublon ajouté par l'admin !"), time.sleep(1), st.rerun()
+        # --- ICI ON EST HORS DU FORMULAIRE (aligné sur le 'with') ---
+        if st.session_state.get('confirm_add_doublon'):
+            st.info("ℹ️ Cliquez ci-dessous pour forcer l'ajout en doublon.")
+            if st.button("👍 Confirmer le doublon volontaire"):
+                conf = st.session_state['confirm_add_doublon']
+                requests.post(SCRIPT_URL, data=json.dumps({
+                    "action":"add",
+                    "date":conf['date'].strftime("%d/%m/%Y"),
+                    "equipage":conf['eq'].upper(),
+                    "horaire":conf['hr'],
+                    "simu":conf['sm']
+                }))
+                del st.session_state['confirm_add_doublon'] # On nettoie la session
+                st.success("✅ Doublon ajouté !"), time.sleep(1), st.rerun()
                     else:
                         st.warning("Veuillez remplir tous les champs.")
 
