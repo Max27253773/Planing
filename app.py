@@ -211,7 +211,7 @@ elif menu == "🔍 Trouver ses créneaux":
     st.markdown("<h1>🔍 Rechercher par Équipage</h1>", unsafe_allow_html=True)
     
     # Zone de recherche
-    nom_cherche = st.text_input("Entrez le nom de l'équipage (ex: ARMADA)", "").upper()
+    nom_cherche = st.text_input("Entrez le nom de l'équipage (ex: ECOLE)", "").upper()
     
     if nom_cherche:
         # Filtrage sur le nom, l'année et la semaine sélectionnée en sidebar
