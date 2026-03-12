@@ -230,12 +230,12 @@ if menu == "📅 Planning":
                         status, msg = verifier_conflit(df, d, q_hr, simu_sel, q_eq)
                     
                         if status == "block":
-                        st.error(f"❌ {msg}")
+                            st.error(f"❌ {msg}")
                     
                         elif status == "warn" and not force_confirm:
-                        # Si doublon détecté SANS la case cochée
-                        st.warning(f"⚠️ {msg}")
-                        st.info("Veuillez cocher la case 'Confirmer le doublon' ci-dessus pour valider quand même.")
+                            # Si doublon détecté SANS la case cochée
+                            st.warning(f"⚠️ {msg}")
+                            st.info("Veuillez cocher la case 'Confirmer le doublon' ci-dessus pour valider quand même.")
                     
                         else:
                             # Cas "ok" OU (cas "warn" ET case cochée)
