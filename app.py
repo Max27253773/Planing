@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 # --- LOGO EN HAUT DE LA SIDEBAR ---
 # Remplace l'URL ci-dessous par le lien de ton image hébergée
-st.sidebar.image("Système solaire.jpg", use_container_width=True)
+st.sidebar.image("Logo.jpg", use_container_width=True)
 st.sidebar.markdown("---") # Petite ligne de séparation
 
 # --- CONFIGURATION ---
