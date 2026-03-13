@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 # --- TITRE INTERSTELLAR DANS LA SIDEBAR ---
 st.sidebar.markdown(
     """
-    <div style="background: linear-gradient(90deg, #0026C7 0%, #FFFFFF 33%, #FFFFFF 66%, #C70000 100%); 
+    <div style="background: linear-gradient(90deg, #0026C7 0%, #FFFFFF 40%, #FFFFFF 60%, #C70000 100%); 
                 padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0px 4px 10px rgba(0,0,0,0.3);">
         <h1 style="font-size: 18px; color: white; margin: 0; letter-spacing: 2px;">
             🌌 INTERSTELLAR GATE
