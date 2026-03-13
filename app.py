@@ -12,10 +12,13 @@ from PIL import Image, ImageDraw, ImageFont
 st.sidebar.markdown(
     """
     <div style="background: linear-gradient(90deg, #0026C7 0%, #FFFFFF 40%, #FFFFFF 60%, #C70000 100%); 
-                padding: 8px; border-radius: 5px; text-align: center; box-shadow: 0px 4px 10px rgba(0,0,0,0.3);">
-        <h1 style="font-size: 10px; color: white; margin: 0; letter-spacing: 2px;">
-            🌌 INTERSTELLAR GATE
-        </p>
+                padding: 4px; border-radius: 5px; text-align: center; 
+                width: 80%; margin: 0 auto; box-shadow: 0px 2px 5px rgba(0,0,0,0.2);">
+        <div style="background-color: #0e1117; padding: 5px; border-radius: 3px;">
+            <h1 style="font-size: 10px; color: white; margin: 0; letter-spacing: 1px; text-transform: uppercase;">
+                🌌 INTERSTELLAR GATE
+            </h1>
+        </div>
     </div>
     <br>
     """, 
