@@ -15,7 +15,7 @@ st.sidebar.markdown(
                 padding: 3px; border-radius: 3px; text-align: center; 
                 width: 50%; margin: 0 auto;">
             <p style="font-size: 9px !important; color: black; margin: 0; letter-spacing: 1px; text-transform: uppercase; font-family: 'Impact';">
-                🌌 IO
+                IO
             </p>
         </div>
     </div>
